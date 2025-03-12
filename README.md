@@ -1,19 +1,25 @@
 # Langki — add language study cards to Anki
+A CLI tool to add language learning cards to Anki, with automatic translation and audio generation.
 
-A CLI tool to add language learning cards to Anki using OpenAI for translations and audio generation with one of three providers:
+Currently supports English to Mandarin Chinese translation with audio generation using three providers:
 - Google Translate TTS (default, no authentication required)
-- Google Cloud Text-to-Speech (requires credentials)
+- Google Cloud Text-to-Speech (requires API key)
 - ElevenLabs (requires API key)
 
 ## Features
 
-- Translate English sentences to Mandarin Chinese (with Hanzi and Pinyin)
-- Generate audio for the translated sentences using one of three providers:
-  - Google Translate TTS (free, no authentication)
-  - Google Cloud Text-to-Speech (requires credentials)
+- Translate English text to Mandarin Chinese using OpenAI's GPT models
+- Support for different translation styles:
+  - `conversational` (default): Natural, everyday language
+  - `formal`: More polite expressions appropriate for business or formal situations
+  - `written`: Literary style suitable for written texts
+- Generate high-quality audio for Chinese text using one of three providers:
+  - Google Translate TTS (default, no authentication required)
+  - Google Cloud Text-to-Speech (requires API key)
   - ElevenLabs (requires API key)
-- Add cards to Anki decks
-- Multiple input modes: command-line arguments, file input, or interactive mode
+- Add cards to Anki with translation and audio
+- Support for batch processing from a file
+- Interactive mode for adding cards one by one
 
 ## Prerequisites
 
@@ -29,79 +35,66 @@ A CLI tool to add language learning cards to Anki using OpenAI for translations 
 1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/)
 2. Run `uv tool install https://github.com/osteele/langki.git`
 
-## Usage
+## Environment Variables
 
-Before using Langki, make sure to:
-
-1. Start Anki
-2. Have the AnkiConnect plugin installed and enabled
-3. Set your API keys as environment variables:
+Set the following environment variables:
 
 ```bash
+# Required for translation
 export OPENAI_API_KEY=your_openai_api_key
 
-# For Google Cloud Text-to-Speech (optional)
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/credentials.json
+# Required only if using Google Cloud Text-to-Speech
+export GOOGLE_APPLICATION_CREDENTIALS=path/to/your/credentials.json
 
-# For ElevenLabs (optional)
+# Required only if using ElevenLabs
 export ELEVENLABS_API_KEY=your_elevenlabs_api_key
 ```
 
-### Command-line mode
+## Usage
+
+### Command-line
 
 ```bash
-# Add a single sentence (using Google Translate TTS by default)
+# Basic usage (uses Google Translate TTS by default)
 langki "Hello, how are you?"
-
-# Use Google Cloud Text-to-Speech
-langki --audio-provider google-cloud "Hello, how are you?"
-
-# Use ElevenLabs
-langki --audio-provider elevenlabs "Hello, how are you?"
-
-# Add multiple sentences
-langki "Hello, how are you?" "I like to travel."
 
 # Words without spaces will be joined into a sentence
 langki Hello how are you
 
-# Specify a different deck
-langki --deck "Chinese Vocabulary" "Hello, how are you?"
+# Specify a different Anki deck
+langki --deck "Chinese" "Hello, how are you?"
+
+# Specify a different translation style
+langki --style formal "Hello, how are you?"
+langki --style written "Hello, how are you?"
+
+# Use a different audio provider
+langki --audio-provider google-cloud "Hello, how are you?"
+langki --audio-provider elevenlabs "Hello, how are you?"
+
+# Combine options
+langki --deck "Business Chinese" --style formal --audio-provider elevenlabs "Hello, how are you?"
 ```
 
-### File input mode
-
-Create a text file with one sentence per line:
-
-```
-Hello, how are you?
-I like to travel.
-I am studying Chinese.
-```
-
-Then run:
+### File Input
 
 ```bash
+# Process sentences from a file (one per line)
 langki --file sentences.txt
 
-# Or with other audio providers
-langki --file sentences.txt --audio-provider google-cloud
-langki --file sentences.txt --audio-provider elevenlabs
+# Combine with other options
+langki --file sentences.txt --deck "Chinese" --style written --audio-provider google-cloud
 ```
 
-### Interactive mode
-
-If no sentences or file are provided, Langki will enter interactive mode:
+### Interactive Mode
 
 ```bash
+# Start interactive mode
 langki
 
-# Or with other audio providers
-langki --audio-provider google-cloud
-langki --audio-provider elevenlabs
+# Start interactive mode with specific options
+langki --deck "Chinese" --style formal --audio-provider elevenlabs
 ```
-
-You'll be prompted to enter sentences one by one. Type `exit` or press Ctrl+C to quit.
 
 ## Development
 
@@ -127,6 +120,7 @@ just tc
 # Run all checks
 just check
 ```
+
 ## Acknowledgements
 
 This project relies on several excellent libraries:

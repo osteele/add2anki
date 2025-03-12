@@ -1,7 +1,7 @@
 """Command-line interface for langki."""
 
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 import click
 from rich.console import Console
@@ -11,7 +11,7 @@ from rich.prompt import Prompt
 from langki.anki_client import AnkiClient
 from langki.audio import create_audio_service
 from langki.exceptions import LangkiError
-from langki.translation import TranslationService
+from langki.translation import StyleType, TranslationService
 
 console = Console()
 
@@ -41,7 +41,13 @@ def check_environment(audio_provider: str) -> Tuple[bool, str]:
     return True, "All required environment variables are set"
 
 
-def process_sentence(sentence: str, deck_name: str, anki_client: AnkiClient, audio_provider: str) -> None:
+def process_sentence(
+    sentence: str,
+    deck_name: str,
+    anki_client: AnkiClient,
+    audio_provider: str,
+    style: StyleType,
+) -> None:
     """Process a single sentence and add it to Anki.
 
     Args:
@@ -49,11 +55,13 @@ def process_sentence(sentence: str, deck_name: str, anki_client: AnkiClient, aud
         deck_name: The name of the Anki deck to add the card to
         anki_client: The AnkiClient instance
         audio_provider: The audio service provider to use
+        style: The style of the translation (written, formal, or conversational)
     """
     # Translate the sentence
     console.print(f"\n[bold blue]Translating:[/bold blue] {sentence}")
+    console.print(f"[bold blue]Using style:[/bold blue] {style}")
     translation_service = TranslationService()
-    translation = translation_service.translate(sentence)
+    translation = translation_service.translate(sentence, style=style)
 
     # Generate audio
     console.print(f"[bold blue]Generating audio for:[/bold blue] {translation.hanzi}")
@@ -113,7 +121,22 @@ def process_sentence(sentence: str, deck_name: str, anki_client: AnkiClient, aud
     default="google-translate",
     help="Audio generation service to use. Default: google-translate",
 )
-def main(sentences: Tuple[str, ...], deck: str, file: Optional[str], host: str, port: int, audio_provider: str) -> None:
+@click.option(
+    "--style",
+    "-s",
+    type=click.Choice(["written", "formal", "conversational"], case_sensitive=False),
+    default="conversational",
+    help="Style of the translation. Default: conversational",
+)
+def main(
+    sentences: Tuple[str, ...],
+    deck: str,
+    file: Optional[str],
+    host: str,
+    port: int,
+    audio_provider: str,
+    style: str,
+) -> None:
     """Add language learning cards to Anki.
 
     If SENTENCES are provided, they will be processed and added to Anki.
@@ -123,10 +146,14 @@ def main(sentences: Tuple[str, ...], deck: str, file: Optional[str], host: str, 
         langki "Hello, how are you?"
         langki --deck "Chinese" "Hello, how are you?"
         langki --file sentences.txt
+        langki --style formal "Hello, how are you?"
         langki --audio-provider elevenlabs "Hello, how are you?"
         langki --audio-provider google-cloud "Hello, how are you?"
         langki  # Interactive mode
     """
+    # Validate and cast style to StyleType
+    style_type = cast(StyleType, style)
+
     # Check environment variables
     env_status, env_msg = check_environment(audio_provider)
     if not env_status:
@@ -143,6 +170,7 @@ def main(sentences: Tuple[str, ...], deck: str, file: Optional[str], host: str, 
     console.print(f"[bold green]✓ {anki_msg}[/bold green]")
     console.print(f"[bold green]✓ {env_msg}[/bold green]")
     console.print(f"[bold green]✓ Using audio provider:[/bold green] {audio_provider}")
+    console.print(f"[bold green]✓ Using translation style:[/bold green] {style}")
 
     # Process sentences from file if provided
     if file is not None:
@@ -150,7 +178,7 @@ def main(sentences: Tuple[str, ...], deck: str, file: Optional[str], host: str, 
             file_sentences = [line.strip() for line in f if line.strip()]
             for sentence in file_sentences:
                 try:
-                    process_sentence(sentence, deck, anki_client, audio_provider)
+                    process_sentence(sentence, deck, anki_client, audio_provider, style_type)
                 except LangkiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
         return
@@ -161,11 +189,11 @@ def main(sentences: Tuple[str, ...], deck: str, file: Optional[str], host: str, 
         # This is to handle the case where the shell splits the arguments
         if len(sentences) > 1 and all(" " not in s for s in sentences):
             joined_sentence = "".join(sentences)
-            process_sentence(joined_sentence, deck, anki_client, audio_provider)
+            process_sentence(joined_sentence, deck, anki_client, audio_provider, style_type)
         else:
             for sentence in sentences:
                 try:
-                    process_sentence(sentence, deck, anki_client, audio_provider)
+                    process_sentence(sentence, deck, anki_client, audio_provider, style_type)
                 except LangkiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
         return
@@ -188,7 +216,7 @@ def main(sentences: Tuple[str, ...], deck: str, file: Optional[str], host: str, 
                 break
             if sentence.strip():
                 try:
-                    process_sentence(sentence, deck, anki_client, audio_provider)
+                    process_sentence(sentence, deck, anki_client, audio_provider, style_type)
                 except LangkiError as e:
                     console.print(f"[bold red]Error:[/bold red] {e}")
         except KeyboardInterrupt:

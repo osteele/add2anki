@@ -15,10 +15,12 @@ def test_translation_result_model() -> None:
         hanzi="u4f60u597d",
         pinyin="nu01d0 hu01ceo",
         english="Hello",
+        style="conversational",
     )
     assert result.hanzi == "u4f60u597d"
     assert result.pinyin == "nu01d0 hu01ceo"
     assert result.english == "Hello"
+    assert result.style == "conversational"
 
 
 def test_translation_service_init_no_api_key() -> None:
@@ -48,14 +50,14 @@ def test_translate_success() -> None:
     mock_response.choices = [
         MagicMock(
             message=MagicMock(
-                content='{"hanzi": "u4f60u597d", "pinyin": "nu01d0 hu01ceo", "english": "Hello"}'
+                content='{"hanzi": "u4f60u597d", "pinyin": "nu01d0 hu01ceo", "english": "Hello", "style": "conversational"}'
             )
         )
     ]
 
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = mock_response
-    
+
     with patch("langki.translation.OpenAI", return_value=mock_client):
         service = TranslationService(api_key="test_key")
         result = service.translate("Hello")
@@ -63,4 +65,5 @@ def test_translate_success() -> None:
         assert result.hanzi == "u4f60u597d"
         assert result.pinyin == "nu01d0 hu01ceo"
         assert result.english == "Hello"
+        assert result.style == "conversational"
         mock_client.chat.completions.create.assert_called_once()

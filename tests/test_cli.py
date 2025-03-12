@@ -35,6 +35,7 @@ def test_process_sentence() -> None:
     mock_translation.hanzi = "u4f60u597d"
     mock_translation.pinyin = "nu01d0 hu01ceo"
     mock_translation.english = "Hello"
+    mock_translation.style = "conversational"
 
     mock_translation_service = MagicMock()
     mock_translation_service.translate.return_value = mock_translation
@@ -49,11 +50,17 @@ def test_process_sentence() -> None:
 
     with patch("langki.cli.TranslationService", return_value=mock_translation_service):
         with patch("langki.cli.create_audio_service", return_value=mock_audio_service):
-            # Call the function
-            process_sentence("Hello", "Test Deck", mock_anki_client, audio_provider="google-translate")
+            # Call the function with style parameter
+            process_sentence(
+                "Hello",
+                "Test Deck",
+                mock_anki_client,
+                audio_provider="google-translate",
+                style="conversational"
+            )
 
             # Verify the calls
-            mock_translation_service.translate.assert_called_once_with("Hello")
+            mock_translation_service.translate.assert_called_once_with("Hello", style="conversational")
             mock_audio_service.generate_audio_file.assert_called_once_with("u4f60u597d")
             mock_anki_client.add_note.assert_called_once()
 
@@ -92,9 +99,9 @@ def test_main_with_sentences() -> None:
                 assert result.exit_code == 0
 
                 # Looking at the CLI implementation, if all arguments have no spaces,
-                # they are joined together into a single sentence
+                # they are joined together into a single sentence, and 'conversational' is the default style
                 mock_process_sentence.assert_called_once_with(
-                    "Helloworld", "Smalltalk", mock_anki_client, "google-translate"
+                    "Helloworld", "Smalltalk", mock_anki_client, "google-translate", "conversational"
                 )
 
 
@@ -122,8 +129,8 @@ def test_main_with_file() -> None:
                     # Check that process_sentence was called for each line in the file
                     assert mock_process_sentence.call_count == 2
                     mock_process_sentence.assert_any_call(
-                        "Hello", "Smalltalk", mock_anki_client, "google-translate"
+                        "Hello", "Smalltalk", mock_anki_client, "google-translate", "conversational"
                     )
                     mock_process_sentence.assert_any_call(
-                        "World", "Smalltalk", mock_anki_client, "google-translate"
+                        "World", "Smalltalk", mock_anki_client, "google-translate", "conversational"
                     )
