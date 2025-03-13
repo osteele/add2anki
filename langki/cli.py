@@ -1,5 +1,6 @@
 """Command-line interface for langki."""
 
+import logging
 import os
 from typing import Optional, Tuple, cast
 
@@ -9,7 +10,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 
 from langki.anki_client import AnkiClient
-from langki.audio import create_audio_service
+from langki.audio import AudioGenerationService, create_audio_service
 from langki.exceptions import LangkiError
 from langki.translation import StyleType, TranslationService
 
@@ -47,6 +48,9 @@ def process_sentence(
     anki_client: AnkiClient,
     audio_provider: str,
     style: StyleType,
+    dry_run: bool = False,
+    verbose: bool = False,
+    debug: bool = False,
 ) -> None:
     """Process a single sentence and add it to Anki.
 
@@ -56,30 +60,41 @@ def process_sentence(
         anki_client: The AnkiClient instance
         audio_provider: The audio service provider to use
         style: The style of the translation (written, formal, or conversational)
+        dry_run: If True, don't actually add to Anki
+        verbose: If True, show more detailed output
+        debug: If True, log debug information
     """
     # Translate the sentence
     console.print(f"\n[bold blue]Translating:[/bold blue] {sentence}")
-    console.print(f"[bold blue]Using style:[/bold blue] {style}")
+    if verbose:
+        console.print(f"[bold blue]Using style:[/bold blue] {style}")
     translation_service = TranslationService()
     translation = translation_service.translate(sentence, style=style)
 
     # Generate audio
     console.print(f"[bold blue]Generating audio for:[/bold blue] {translation.hanzi}")
-    console.print(f"[bold blue]Using audio provider:[/bold blue] {audio_provider}")
-    audio_service = create_audio_service(provider=audio_provider)
+    audio_service: AudioGenerationService = create_audio_service(provider=audio_provider)
     audio_path = audio_service.generate_audio_file(translation.hanzi)
 
     # Add to Anki
     note_type = "Chinese English -> Hanzi"
+
+    # Prepare fields for the note
+    fields = {
+        "Hanzi": translation.hanzi,
+        "Pinyin": translation.pinyin,
+        "English": translation.english,
+    }
+
+    if dry_run:
+        console.print(f"[bold yellow]DRY RUN:[/bold yellow] Would add note to deck '{deck_name}'")
+        return
+
     console.print(f"[bold blue]Adding to Anki deck:[/bold blue] {deck_name}")
     note_id = anki_client.add_note(
         deck_name=deck_name,
         note_type=note_type,
-        fields={
-            "Hanzi": translation.hanzi,
-            "Pinyin": translation.pinyin,
-            "English": translation.english,
-        },
+        fields=fields,
         audio={
             "path": audio_path,
             "filename": f"{hash(translation.hanzi)}.mp3",
@@ -128,6 +143,22 @@ def process_sentence(
     default="conversational",
     help="Style of the translation. Default: conversational",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Process sentences but don't add them to Anki",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show more detailed output",
+)
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debug logging for troubleshooting",
+)
 def main(
     sentences: Tuple[str, ...],
     deck: str,
@@ -136,6 +167,9 @@ def main(
     port: int,
     audio_provider: str,
     style: str,
+    dry_run: bool,
+    verbose: bool,
+    debug: bool,
 ) -> None:
     """Add language learning cards to Anki.
 
@@ -149,8 +183,17 @@ def main(
         langki --style formal "Hello, how are you?"
         langki --audio-provider elevenlabs "Hello, how are you?"
         langki --audio-provider google-cloud "Hello, how are you?"
+        langki --dry-run "Hello, how are you?"
+        langki --verbose "Hello, how are you?"
+        langki --debug "Hello, how are you?"
         langki  # Interactive mode
     """
+    # Configure logging if debug is enabled
+    if debug:
+        logging.basicConfig(level=logging.DEBUG,
+                           format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console.print("[bold blue]Debug logging enabled[/bold blue]")
+
     # Validate and cast style to StyleType
     style_type = cast(StyleType, style)
 
@@ -168,9 +211,13 @@ def main(
         raise click.Abort(anki_msg)
 
     console.print(f"[bold green]✓ {anki_msg}[/bold green]")
-    console.print(f"[bold green]✓ {env_msg}[/bold green]")
-    console.print(f"[bold green]✓ Using audio provider:[/bold green] {audio_provider}")
-    console.print(f"[bold green]✓ Using translation style:[/bold green] {style}")
+    if verbose:
+        console.print(f"[bold green]✓ {env_msg}[/bold green]")
+        console.print(f"[bold green]✓ Using audio provider:[/bold green] {audio_provider}")
+        console.print(f"[bold green]✓ Using translation style:[/bold green] {style}")
+
+    if dry_run:
+        console.print("[bold yellow]Running in dry-run mode (no changes will be made to Anki)[/bold yellow]")
 
     # Process sentences from file if provided
     if file is not None:
@@ -178,7 +225,7 @@ def main(
             file_sentences = [line.strip() for line in f if line.strip()]
             for sentence in file_sentences:
                 try:
-                    process_sentence(sentence, deck, anki_client, audio_provider, style_type)
+                    process_sentence(sentence, deck, anki_client, audio_provider, style_type, dry_run, verbose, debug)
                 except LangkiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
         return
@@ -188,12 +235,15 @@ def main(
         # If there's only one sentence with no spaces, it might be a concatenated string
         # This is to handle the case where the shell splits the arguments
         if len(sentences) > 1 and all(" " not in s for s in sentences):
-            joined_sentence = "".join(sentences)
-            process_sentence(joined_sentence, deck, anki_client, audio_provider, style_type)
+            joined_sentence = " ".join(sentences)
+            try:
+                process_sentence(joined_sentence, deck, anki_client, audio_provider, style_type, dry_run, verbose, debug)
+            except LangkiError as e:
+                console.print(f"[bold red]Error processing '{joined_sentence}':[/bold red] {e}")
         else:
             for sentence in sentences:
                 try:
-                    process_sentence(sentence, deck, anki_client, audio_provider, style_type)
+                    process_sentence(sentence, deck, anki_client, audio_provider, style_type, dry_run, verbose, debug)
                 except LangkiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
         return
@@ -209,6 +259,9 @@ def main(
         )
     )
 
+    if dry_run:
+        console.print("[bold yellow]Running in dry-run mode (no changes will be made to Anki)[/bold yellow]")
+
     while True:
         try:
             sentence = Prompt.ask("\n[bold blue]Enter an English sentence[/bold blue]")
@@ -216,7 +269,7 @@ def main(
                 break
             if sentence.strip():
                 try:
-                    process_sentence(sentence, deck, anki_client, audio_provider, style_type)
+                    process_sentence(sentence, deck, anki_client, audio_provider, style_type, dry_run, verbose, debug)
                 except LangkiError as e:
                     console.print(f"[bold red]Error:[/bold red] {e}")
         except KeyboardInterrupt:

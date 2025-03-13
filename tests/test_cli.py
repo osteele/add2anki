@@ -101,7 +101,7 @@ def test_main_with_sentences() -> None:
                 # Looking at the CLI implementation, if all arguments have no spaces,
                 # they are joined together into a single sentence, and 'conversational' is the default style
                 mock_process_sentence.assert_called_once_with(
-                    "Helloworld", "Smalltalk", mock_anki_client, "google-translate", "conversational"
+                    "Hello world", "Smalltalk", mock_anki_client, "google-translate", "conversational", False, False, False
                 )
 
 
@@ -129,8 +129,8 @@ def test_main_with_file() -> None:
                     # Check that process_sentence was called for each line in the file
                     assert mock_process_sentence.call_count == 2
                     mock_process_sentence.assert_any_call(
-                        "Hello", "Smalltalk", mock_anki_client, "google-translate", "conversational"
+                        "Hello", "Smalltalk", mock_anki_client, "google-translate", "conversational", False, False, False
                     )
                     mock_process_sentence.assert_any_call(
-                        "World", "Smalltalk", mock_anki_client, "google-translate", "conversational"
+                        "World", "Smalltalk", mock_anki_client, "google-translate", "conversational", False, False, False
                     )

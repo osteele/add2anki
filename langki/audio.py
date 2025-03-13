@@ -6,9 +6,12 @@ import tempfile
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 import elevenlabs.client
+
+# Ignore the missing stub file for google.cloud
+# pyright: reportMissingTypeStubs=false
 from google.cloud import texttospeech
 
 from langki.exceptions import AudioGenerationError, ConfigurationError
@@ -134,7 +137,7 @@ class ElevenLabsAudioService(AudioGenerationService):
             available_voices = response.voices
 
             # Filter for voices that support Chinese
-            chinese_voices = []
+            chinese_voices: List[Any] = []
             for voice in available_voices:
                 # Handle voice.labels.languages which should be a list of strings
                 languages: List[str] = getattr(getattr(voice, "labels", {}), "languages", [])
@@ -156,6 +159,7 @@ class ElevenLabsAudioService(AudioGenerationService):
             if not chinese_voices:
                 raise AudioGenerationError("No voices found")
 
+            # Cast to str to ensure type safety
             return str(chinese_voices[0].voice_id)
 
         except Exception as e:
@@ -193,7 +197,8 @@ class ElevenLabsAudioService(AudioGenerationService):
             audio_bytes = b"".join(audio) if hasattr(audio, "__iter__") and not isinstance(audio, bytes) else audio
 
             with open(audio_file_path, "wb") as file:
-                file.write(audio_bytes)
+                # Cast to bytes to ensure type safety
+                file.write(cast(bytes, audio_bytes))
 
             return str(audio_file_path)
 
@@ -257,7 +262,7 @@ class GoogleCloudAudioService(AudioGenerationService):
             )
 
             # Perform the text-to-speech request
-            response = self.client.synthesize_speech(
+            response = self.client.synthesize_speech( # pyright: ignore[reportUnknownMemberType]
                 input=synthesis_input, voice=voice, audio_config=audio_config
             )
 
@@ -275,12 +280,14 @@ class GoogleCloudAudioService(AudioGenerationService):
             raise AudioGenerationError(f"Audio generation failed: {e}")
 
 
-def create_audio_service(provider: str = "google-translate", **kwargs) -> AudioGenerationService:
+def create_audio_service(provider: str = "google-translate", **kwargs: Any) -> AudioGenerationService:
     """Create an audio service based on the specified provider.
 
     Args:
         provider: The audio service provider to use ('google-translate', 'google-cloud', or 'elevenlabs').
         **kwargs: Additional arguments to pass to the service constructor.
+            - eleven_labs_api_key: API key for ElevenLabs (for 'elevenlabs' provider)
+            - google_credentials_path: Path to Google Cloud credentials (for 'google-cloud' provider)
 
     Returns:
         An instance of AudioGenerationService.
