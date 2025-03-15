@@ -152,12 +152,22 @@ def test_main_no_sentences_no_file() -> None:
         with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
             mock_anki_client = MagicMock()
             mock_anki_client.check_connection.return_value = (True, "Connected")
+            # Mock get_deck_names to return a list of decks
+            mock_anki_client.get_deck_names.return_value = ["Default"]
             mock_anki_client_class.return_value = mock_anki_client
 
-            # Mock Prompt.ask to simulate user input and then exit
-            with patch("rich.prompt.Prompt.ask", side_effect=["exit"]):
-                result = runner.invoke(main, [])
-                assert result.exit_code == 0
+            # Mock config
+            mock_config = MagicMock()
+            mock_config.deck_name = None
+            mock_config.note_type = "Basic"
+
+            with patch("add2anki.cli.load_config", return_value=mock_config):
+                # Mock save_config to avoid file operations
+                with patch("add2anki.cli.save_config"):
+                    # Mock Prompt.ask to simulate user input and then exit
+                    with patch("rich.prompt.Prompt.ask", side_effect=["exit"]):
+                        result = runner.invoke(main, [])
+                        assert result.exit_code == 0
 
 
 def test_main_with_sentences() -> None:
@@ -171,9 +181,9 @@ def test_main_with_sentences() -> None:
             mock_anki_client.check_connection.return_value = (True, "Connected")
             mock_anki_client_class.return_value = mock_anki_client
 
-            # Mock load_config to return a config with last_used_deck set to "Smalltalk"
+            # Mock load_config to return a config with deck_name set to "Smalltalk"
             mock_config = MagicMock()
-            mock_config.last_used_deck = "Smalltalk"
+            mock_config.deck_name = "Smalltalk"
             with patch("add2anki.cli.load_config", return_value=mock_config):
                 # Mock process_sentence
                 with patch("add2anki.cli.process_sentence") as mock_process_sentence:
@@ -212,9 +222,9 @@ def test_main_with_file() -> None:
                 mock_anki_client.check_connection.return_value = (True, "Connected")
                 mock_anki_client_class.return_value = mock_anki_client
 
-                # Mock load_config to return a config with last_used_deck set to "Smalltalk"
+                # Mock load_config to return a config with deck_name set to "Smalltalk"
                 mock_config = MagicMock()
-                mock_config.last_used_deck = "Smalltalk"
+                mock_config.deck_name = "Smalltalk"
                 with patch("add2anki.cli.load_config", return_value=mock_config):
                     # Mock process_sentence
                     with patch("add2anki.cli.process_sentence") as mock_process_sentence:
@@ -260,9 +270,9 @@ def test_main_with_tags() -> None:
             mock_anki_client.check_connection.return_value = (True, "Connected")
             mock_anki_client_class.return_value = mock_anki_client
 
-            # Mock load_config to return a config with last_used_deck set to "Smalltalk"
+            # Mock load_config to return a config with deck_name set to "Smalltalk"
             mock_config = MagicMock()
-            mock_config.last_used_deck = "Smalltalk"
+            mock_config.deck_name = "Smalltalk"
             with patch("add2anki.cli.load_config", return_value=mock_config):
                 # Mock process_sentence
                 with patch("add2anki.cli.process_sentence") as mock_process_sentence:
