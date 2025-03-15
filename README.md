@@ -135,6 +135,9 @@ cd langki
 # Install dependencies
 just setup
 
+# Install pre-commit hooks
+uv run --dev pre-commit install
+
 # Run tests
 just test
 
@@ -145,6 +148,19 @@ just tc
 # Run all checks
 just check
 ```
+
+### Pre-commit Hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to run code formatting before each commit.
+The hooks will automatically run `just fmt` to format your code with ruff.
+
+To install the pre-commit hooks:
+
+```bash
+uv run --dev pre-commit install
+```
+
+After installation, the hooks will run automatically on each commit.
 
 ## Acknowledgements
 

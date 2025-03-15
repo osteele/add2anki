@@ -8,18 +8,28 @@ setup:
 default:
     @just --list
 
-# Format code with black and ruff
+# Format code with ruff
 fmt:
-    uv run black .
-    uv run ruff --fix .
+    uv run --dev ruff format .
+    uv run --dev ruff check --fix-only .
+
+# Like format, but also shows unfixable issues that need manual attention
+fix:
+    uv run --dev ruff format .
+    uv run --dev ruff check --fix --unsafe-fixes .
+
+# Verify code quality without modifying files
+lint:
+    uv run --dev ruff check .
+    uv run --dev pyright
 
 # Run type checking with mypy
 tc:
-    uv run pyright langki
+    uv run --dev pyright langki
 
 # Run tests with pytest
 test *ARGS:
-    uv run pytest {{ARGS}}
+    uv run --dev pytest {{ARGS}}
 
 # Run all checks: formatting, type checking, and tests
 check: fmt tc test

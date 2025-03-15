@@ -2,8 +2,6 @@
 
 import logging
 import os
-import sys
-from pathlib import Path
 from typing import Any, Optional, Tuple, cast
 
 import click
@@ -11,11 +9,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import IntPrompt, Prompt
 from rich.table import Table
-
-# Add the parent directory to sys.path to ensure imports work correctly
-parent_dir = str(Path(__file__).parent.parent)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
 
 from langki.anki_client import AnkiClient
 from langki.audio import AudioGenerationService, create_audio_service
@@ -49,9 +42,7 @@ def check_environment(audio_provider: str) -> Tuple[bool, str]:
     # Check for provider-specific environment variables
     if audio_provider.lower() == "elevenlabs" and not os.environ.get("ELEVENLABS_API_KEY"):
         missing_vars.append("ELEVENLABS_API_KEY")
-    elif audio_provider.lower() == "google-cloud" and not os.environ.get(
-        "GOOGLE_APPLICATION_CREDENTIALS"
-    ):
+    elif audio_provider.lower() == "google-cloud" and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
         missing_vars.append("GOOGLE_APPLICATION_CREDENTIALS")
     # Google Translate doesn't require any credentials
 
@@ -109,7 +100,8 @@ def process_sentence(
         if not suitable_note_types:
             console.print("[bold red]Error:[/bold red] No suitable note types found in Anki.")
             console.print(
-                "Please create a note type with fields for Hanzi/Chinese, Pinyin/Pronunciation, and English/Translation."
+                "Please create a note type with fields for Hanzi/Chinese, Pinyin/Pronunciation, "
+                "and English/Translation."
             )
             return
 
@@ -213,9 +205,7 @@ def process_sentence(
 
     if dry_run:
         console.print(f"[bold yellow]DRY RUN:[/bold yellow] Would add note to deck '{deck_name}'")
-        console.print(
-            f"[bold yellow]Note type:[/bold yellow] {selected_note_type or 'Chinese English -> Hanzi'}"
-        )
+        console.print(f"[bold yellow]Note type:[/bold yellow] {selected_note_type or 'Chinese English -> Hanzi'}")
         console.print(f"[bold yellow]Fields:[/bold yellow] {fields}")
         return
 
@@ -336,9 +326,7 @@ def main(
     """
     # Configure logging if debug is enabled
     if debug:
-        logging.basicConfig(
-            level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         console.print("[bold blue]Debug logging enabled[/bold blue]")
 
     # Validate and cast style to StyleType
@@ -364,9 +352,7 @@ def main(
         console.print(f"[bold green]✓ Using translation style:[/bold green] {style}")
 
     if dry_run:
-        console.print(
-            "[bold yellow]Running in dry-run mode (no changes will be made to Anki)[/bold yellow]"
-        )
+        console.print("[bold yellow]Running in dry-run mode (no changes will be made to Anki)[/bold yellow]")
 
     # Load configuration
     config = load_config()
@@ -445,9 +431,7 @@ def main(
     )
 
     if dry_run:
-        console.print(
-            "[bold yellow]Running in dry-run mode (no changes will be made to Anki)[/bold yellow]"
-        )
+        console.print("[bold yellow]Running in dry-run mode (no changes will be made to Anki)[/bold yellow]")
 
     while True:
         try:

@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: just-fmt
+        name: Format with ruff
+        description: Run just fmt to format code with ruff
+        entry: just fmt
+        language: system
+        pass_filenames: false
+        types: [python]

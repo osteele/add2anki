@@ -24,25 +24,22 @@ dependencies = [
 langki = "langki.cli:main"
 
 [dependency-groups]
-dev = ["black>=23.12.1", "mypy>=1.8.0", "ruff>=0.1.9", "pytest>=7.4.4"]
+dev = ["ruff>=0.1.9", "pyright>=1.1.394", "pytest>=7.4.4", "pre-commit>=3.5.0"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
 
-[tool.mypy]
-python_version = "3.12"
-check_untyped_defs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-strict_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
+[tool.ruff.lint]
+# Enable Pyflakes (`F`), pycodestyle (`E`), and import sorting (`I`)
+select = ["E", "F", "I"]
 
-[tool.black]
-line-length = 100
-target-version = ["py312"]
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+# Use spaces for indentation
+indent-style = "space"
+
+[tool.pyright]
+python_version = "3.12"
+typeCheckingMode = "strict"

@@ -48,8 +48,7 @@ class AnkiClient:
             return result["result"]
         except requests.exceptions.ConnectionError:
             raise AnkiConnectError(
-                "Could not connect to Anki. Please make sure Anki is running and the AnkiConnect "
-                "plugin is installed."
+                "Could not connect to Anki. Please make sure Anki is running and the AnkiConnect plugin is installed."
             )
         except requests.exceptions.RequestException as e:
             raise AnkiConnectError(f"Request to AnkiConnect failed: {e}")
@@ -95,7 +94,13 @@ class AnkiClient:
         """
         return self._request("createDeck", deck=deck_name)
 
-    def add_note(self, deck_name: str, note_type: str, fields: dict[str, str], audio: dict[str, Any] | None = None) -> int:
+    def add_note(
+        self,
+        deck_name: str,
+        note_type: str,
+        fields: dict[str, str],
+        audio: dict[str, Any] | None = None,
+    ) -> int:
         """Add a note to a deck.
 
         Args:
