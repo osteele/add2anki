@@ -62,7 +62,7 @@ def test_process_sentence() -> None:
         with patch("add2anki.cli.create_audio_service", return_value=mock_audio_service):
             with patch("add2anki.cli.load_config", return_value=mock_config):
                 with patch("add2anki.cli.save_config"):
-                    # Call the function with style parameter
+                    # Test 1: Call the function with default tags (None)
                     process_sentence(
                         "Hello",
                         "Test Deck",
@@ -72,9 +72,75 @@ def test_process_sentence() -> None:
                     )
 
                     # Verify the calls
-                    mock_translation_service.translate.assert_called_once_with("Hello", style="conversational")
-                    mock_audio_service.generate_audio_file.assert_called_once_with("u4f60u597d")
-                    mock_anki_client.add_note.assert_called_once()
+                    mock_translation_service.translate.assert_called_with("Hello", style="conversational")
+                    mock_audio_service.generate_audio_file.assert_called_with("u4f60u597d")
+
+                    # Default tag should be ["add2anki"]
+                    mock_anki_client.add_note.assert_called_with(
+                        deck_name="Test Deck",
+                        note_type="Chinese Basic",
+                        fields={"Chinese": "u4f60u597d", "Pronunciation": "nu01d0 hu01ceo", "Translation": "Hello"},
+                        audio={
+                            "path": "/tmp/audio.mp3",
+                            "filename": mock_anki_client.add_note.call_args[1]["audio"]["filename"],
+                            "fields": ["Sound"],
+                        },
+                        tags=["add2anki"],
+                    )
+
+                    # Reset mocks for next test
+                    mock_anki_client.reset_mock()
+                    mock_translation_service.reset_mock()
+                    mock_audio_service.reset_mock()
+
+                    # Test 2: Call the function with custom tags
+                    process_sentence(
+                        "Hello",
+                        "Test Deck",
+                        mock_anki_client,
+                        audio_provider="google-translate",
+                        style="conversational",
+                        tags="custom,tags",
+                    )
+
+                    # Custom tags should be ["custom", "tags"]
+                    mock_anki_client.add_note.assert_called_with(
+                        deck_name="Test Deck",
+                        note_type="Chinese Basic",
+                        fields={"Chinese": "u4f60u597d", "Pronunciation": "nu01d0 hu01ceo", "Translation": "Hello"},
+                        audio={
+                            "path": "/tmp/audio.mp3",
+                            "filename": mock_anki_client.add_note.call_args[1]["audio"]["filename"],
+                            "fields": ["Sound"],
+                        },
+                        tags=["custom", "tags"],
+                    )
+
+                    # Reset mocks for next test
+                    mock_anki_client.reset_mock()
+
+                    # Test 3: Call the function with empty tags
+                    process_sentence(
+                        "Hello",
+                        "Test Deck",
+                        mock_anki_client,
+                        audio_provider="google-translate",
+                        style="conversational",
+                        tags="",
+                    )
+
+                    # Empty tags should result in empty list
+                    mock_anki_client.add_note.assert_called_with(
+                        deck_name="Test Deck",
+                        note_type="Chinese Basic",
+                        fields={"Chinese": "u4f60u597d", "Pronunciation": "nu01d0 hu01ceo", "Translation": "Hello"},
+                        audio={
+                            "path": "/tmp/audio.mp3",
+                            "filename": mock_anki_client.add_note.call_args[1]["audio"]["filename"],
+                            "fields": ["Sound"],
+                        },
+                        tags=[],
+                    )
 
 
 def test_main_no_sentences_no_file() -> None:
@@ -126,6 +192,7 @@ def test_main_with_sentences() -> None:
                         False,
                         False,
                         False,
+                        None,  # tags parameter
                     )
 
 
@@ -166,6 +233,7 @@ def test_main_with_file() -> None:
                             False,
                             False,
                             False,
+                            None,  # tags parameter
                         )
                         mock_process_sentence.assert_any_call(
                             "World",
@@ -177,4 +245,60 @@ def test_main_with_file() -> None:
                             False,
                             False,
                             False,
+                            None,  # tags parameter
                         )
+
+
+def test_main_with_tags() -> None:
+    """Test main function with tags option."""
+    runner = CliRunner()
+
+    # Mock environment and Anki checks to pass
+    with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
+        with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
+            mock_anki_client = MagicMock()
+            mock_anki_client.check_connection.return_value = (True, "Connected")
+            mock_anki_client_class.return_value = mock_anki_client
+
+            # Mock load_config to return a config with last_used_deck set to "Smalltalk"
+            mock_config = MagicMock()
+            mock_config.last_used_deck = "Smalltalk"
+            with patch("add2anki.cli.load_config", return_value=mock_config):
+                # Mock process_sentence
+                with patch("add2anki.cli.process_sentence") as mock_process_sentence:
+                    # Test with custom tags
+                    result = runner.invoke(main, ["--tags", "test,tag", "Hello"])
+                    assert result.exit_code == 0
+
+                    mock_process_sentence.assert_called_with(
+                        "Hello",
+                        "Smalltalk",
+                        mock_anki_client,
+                        "google-translate",
+                        "conversational",
+                        None,
+                        False,
+                        False,
+                        False,
+                        "test,tag",  # tags parameter
+                    )
+
+                    # Reset mock
+                    mock_process_sentence.reset_mock()
+
+                    # Test with empty tags
+                    result = runner.invoke(main, ["--tags", "", "Hello"])
+                    assert result.exit_code == 0
+
+                    mock_process_sentence.assert_called_with(
+                        "Hello",
+                        "Smalltalk",
+                        mock_anki_client,
+                        "google-translate",
+                        "conversational",
+                        None,
+                        False,
+                        False,
+                        False,
+                        "",  # empty tags parameter
+                    )

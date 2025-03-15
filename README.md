@@ -18,6 +18,7 @@ Currently supports English to Mandarin Chinese translation with audio generation
   - Google Cloud Text-to-Speech (requires API key)
   - ElevenLabs (requires API key)
 - Add cards to Anki with translation and audio
+- Add custom tags to notes or use the default "add2anki" tag
 - Automatic detection of suitable note types and field mappings
 - Support for custom note types with field name synonyms (Hanzi/Chinese, Pinyin/Pronunciation, English/Translation)
 - Configuration saved between sessions
@@ -74,12 +75,16 @@ add2anki --style written "Hello, how are you?"
 # Specify a note type
 add2anki --note-type "Basic" "Hello, how are you?"
 
+# Add tags to the note
+add2anki --tags "chinese,beginner" "Hello, how are you?"
+add2anki --tags "" "Hello, how are you?"  # No tags (default is "add2anki")
+
 # Use a different audio provider
 add2anki --audio-provider google-cloud "Hello, how are you?"
 add2anki --audio-provider elevenlabs "Hello, how are you?"
 
 # Combine options
-add2anki --deck "Business Chinese" --style formal --audio-provider elevenlabs "Hello, how are you?"
+add2anki --deck "Business Chinese" --style formal --audio-provider elevenlabs --tags "business,formal" "Hello, how are you?"
 ```
 
 ### File Input
@@ -89,7 +94,7 @@ add2anki --deck "Business Chinese" --style formal --audio-provider elevenlabs "H
 add2anki --file sentences.txt
 
 # Combine with other options
-add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider google-cloud
+add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider google-cloud --tags "from-file,written"
 ```
 
 ### Interactive Mode
@@ -99,7 +104,7 @@ add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider 
 add2anki
 
 # Start interactive mode with specific options
-add2anki --deck "Chinese" --style formal --audio-provider elevenlabs
+add2anki --deck "Chinese" --style formal --audio-provider elevenlabs --tags "interactive,formal"
 ```
 
 ## Note Type Selection
