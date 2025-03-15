@@ -48,21 +48,37 @@ def test_process_sentence() -> None:
     mock_anki_client = MagicMock()
     mock_anki_client.add_note.return_value = 12345
 
+    # Mock the note type and field names
+    mock_anki_client.get_field_names.return_value = [
+        "Chinese",
+        "Pronunciation",
+        "Translation",
+        "Sound",
+    ]
+
+    # Mock the config
+    mock_config = MagicMock()
+    mock_config.note_type = "Chinese Basic"
+
     with patch("langki.cli.TranslationService", return_value=mock_translation_service):
         with patch("langki.cli.create_audio_service", return_value=mock_audio_service):
-            # Call the function with style parameter
-            process_sentence(
-                "Hello",
-                "Test Deck",
-                mock_anki_client,
-                audio_provider="google-translate",
-                style="conversational"
-            )
+            with patch("langki.cli.load_config", return_value=mock_config):
+                with patch("langki.cli.save_config"):
+                    # Call the function with style parameter
+                    process_sentence(
+                        "Hello",
+                        "Test Deck",
+                        mock_anki_client,
+                        audio_provider="google-translate",
+                        style="conversational",
+                    )
 
-            # Verify the calls
-            mock_translation_service.translate.assert_called_once_with("Hello", style="conversational")
-            mock_audio_service.generate_audio_file.assert_called_once_with("u4f60u597d")
-            mock_anki_client.add_note.assert_called_once()
+                    # Verify the calls
+                    mock_translation_service.translate.assert_called_once_with(
+                        "Hello", style="conversational"
+                    )
+                    mock_audio_service.generate_audio_file.assert_called_once_with("u4f60u597d")
+                    mock_anki_client.add_note.assert_called_once()
 
 
 def test_main_no_sentences_no_file() -> None:
@@ -93,16 +109,28 @@ def test_main_with_sentences() -> None:
             mock_anki_client.check_connection.return_value = (True, "Connected")
             mock_anki_client_class.return_value = mock_anki_client
 
-            # Mock process_sentence
-            with patch("langki.cli.process_sentence") as mock_process_sentence:
-                result = runner.invoke(main, ["Hello", "world"])
-                assert result.exit_code == 0
+            # Mock load_config to return a config with last_used_deck set to "Smalltalk"
+            mock_config = MagicMock()
+            mock_config.last_used_deck = "Smalltalk"
+            with patch("langki.cli.load_config", return_value=mock_config):
+                # Mock process_sentence
+                with patch("langki.cli.process_sentence") as mock_process_sentence:
+                    result = runner.invoke(main, ["Hello", "world"])
+                    assert result.exit_code == 0
 
-                # Looking at the CLI implementation, if all arguments have no spaces,
-                # they are joined together into a single sentence, and 'conversational' is the default style
-                mock_process_sentence.assert_called_once_with(
-                    "Hello world", "Smalltalk", mock_anki_client, "google-translate", "conversational", False, False, False
-                )
+                    # Looking at the CLI implementation, if all arguments have no spaces,
+                    # they are joined together into a single sentence, and 'conversational' is the default style
+                    mock_process_sentence.assert_called_once_with(
+                        "Hello world",
+                        "Smalltalk",
+                        mock_anki_client,
+                        "google-translate",
+                        "conversational",
+                        None,
+                        False,
+                        False,
+                        False,
+                    )
 
 
 def test_main_with_file() -> None:
@@ -121,16 +149,36 @@ def test_main_with_file() -> None:
                 mock_anki_client.check_connection.return_value = (True, "Connected")
                 mock_anki_client_class.return_value = mock_anki_client
 
-                # Mock process_sentence
-                with patch("langki.cli.process_sentence") as mock_process_sentence:
-                    result = runner.invoke(main, ["--file", "sentences.txt"])
-                    assert result.exit_code == 0
+                # Mock load_config to return a config with last_used_deck set to "Smalltalk"
+                mock_config = MagicMock()
+                mock_config.last_used_deck = "Smalltalk"
+                with patch("langki.cli.load_config", return_value=mock_config):
+                    # Mock process_sentence
+                    with patch("langki.cli.process_sentence") as mock_process_sentence:
+                        result = runner.invoke(main, ["--file", "sentences.txt"])
+                        assert result.exit_code == 0
 
-                    # Check that process_sentence was called for each line in the file
-                    assert mock_process_sentence.call_count == 2
-                    mock_process_sentence.assert_any_call(
-                        "Hello", "Smalltalk", mock_anki_client, "google-translate", "conversational", False, False, False
-                    )
-                    mock_process_sentence.assert_any_call(
-                        "World", "Smalltalk", mock_anki_client, "google-translate", "conversational", False, False, False
-                    )
+                        # Check that process_sentence was called for each line in the file
+                        assert mock_process_sentence.call_count == 2
+                        mock_process_sentence.assert_any_call(
+                            "Hello",
+                            "Smalltalk",
+                            mock_anki_client,
+                            "google-translate",
+                            "conversational",
+                            None,
+                            False,
+                            False,
+                            False,
+                        )
+                        mock_process_sentence.assert_any_call(
+                            "World",
+                            "Smalltalk",
+                            mock_anki_client,
+                            "google-translate",
+                            "conversational",
+                            None,
+                            False,
+                            False,
+                            False,
+                        )
