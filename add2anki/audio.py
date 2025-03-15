@@ -14,7 +14,7 @@ import elevenlabs.client
 # pyright: reportMissingTypeStubs=false
 from google.cloud import texttospeech
 
-from langki.exceptions import AudioGenerationError, ConfigurationError
+from add2anki.exceptions import AudioGenerationError, ConfigurationError
 
 # Create an alias for the tests to mock
 ElevenLabs = elevenlabs.client.ElevenLabs
@@ -85,7 +85,7 @@ class GoogleTranslateAudioService(AudioGenerationService):
             request = urllib.request.Request(url, headers=headers)
 
             # Save to a temporary file
-            temp_dir = Path(tempfile.gettempdir()) / "langki"
+            temp_dir = Path(tempfile.gettempdir()) / "add2anki"
             temp_dir.mkdir(exist_ok=True)
             audio_file_path = temp_dir / f"{hash(text)}.mp3"
 
@@ -189,7 +189,7 @@ class ElevenLabsAudioService(AudioGenerationService):
             )
 
             # Save to a temporary file
-            temp_dir = Path(tempfile.gettempdir()) / "langki"
+            temp_dir = Path(tempfile.gettempdir()) / "add2anki"
             temp_dir.mkdir(exist_ok=True)
             audio_file_path = temp_dir / f"{hash(text)}.mp3"
 
@@ -267,7 +267,7 @@ class GoogleCloudAudioService(AudioGenerationService):
             )
 
             # Save to a temporary file
-            temp_dir = Path(tempfile.gettempdir()) / "langki"
+            temp_dir = Path(tempfile.gettempdir()) / "add2anki"
             temp_dir.mkdir(exist_ok=True)
             audio_file_path = temp_dir / f"{hash(text)}.mp3"
 

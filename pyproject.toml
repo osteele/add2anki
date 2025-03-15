@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "langki"
+name = "add2anki"
 version = "0.1.0"
 description = "CLI tool to add language learning cards to Anki"
 authors = [{ name = "Oliver Steele", email = "steele@osteele.com" }]
@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-langki = "langki.cli:main"
+add2anki = "add2anki.cli:main"
 
 [dependency-groups]
 dev = ["ruff>=0.1.9", "pyright>=1.1.394", "pytest>=7.4.4", "pre-commit>=3.5.0"]

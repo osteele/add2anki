@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from langki.cli import check_environment, main, process_sentence
+from add2anki.cli import check_environment, main, process_sentence
 
 
 def test_check_environment_missing_vars() -> None:
@@ -58,10 +58,10 @@ def test_process_sentence() -> None:
     mock_config = MagicMock()
     mock_config.note_type = "Chinese Basic"
 
-    with patch("langki.cli.TranslationService", return_value=mock_translation_service):
-        with patch("langki.cli.create_audio_service", return_value=mock_audio_service):
-            with patch("langki.cli.load_config", return_value=mock_config):
-                with patch("langki.cli.save_config"):
+    with patch("add2anki.cli.TranslationService", return_value=mock_translation_service):
+        with patch("add2anki.cli.create_audio_service", return_value=mock_audio_service):
+            with patch("add2anki.cli.load_config", return_value=mock_config):
+                with patch("add2anki.cli.save_config"):
                     # Call the function with style parameter
                     process_sentence(
                         "Hello",
@@ -82,8 +82,8 @@ def test_main_no_sentences_no_file() -> None:
     runner = CliRunner()
 
     # Mock environment and Anki checks to pass
-    with patch("langki.cli.check_environment", return_value=(True, "All good")):
-        with patch("langki.cli.AnkiClient") as mock_anki_client_class:
+    with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
+        with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
             mock_anki_client = MagicMock()
             mock_anki_client.check_connection.return_value = (True, "Connected")
             mock_anki_client_class.return_value = mock_anki_client
@@ -99,8 +99,8 @@ def test_main_with_sentences() -> None:
     runner = CliRunner()
 
     # Mock environment and Anki checks to pass
-    with patch("langki.cli.check_environment", return_value=(True, "All good")):
-        with patch("langki.cli.AnkiClient") as mock_anki_client_class:
+    with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
+        with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
             mock_anki_client = MagicMock()
             mock_anki_client.check_connection.return_value = (True, "Connected")
             mock_anki_client_class.return_value = mock_anki_client
@@ -108,9 +108,9 @@ def test_main_with_sentences() -> None:
             # Mock load_config to return a config with last_used_deck set to "Smalltalk"
             mock_config = MagicMock()
             mock_config.last_used_deck = "Smalltalk"
-            with patch("langki.cli.load_config", return_value=mock_config):
+            with patch("add2anki.cli.load_config", return_value=mock_config):
                 # Mock process_sentence
-                with patch("langki.cli.process_sentence") as mock_process_sentence:
+                with patch("add2anki.cli.process_sentence") as mock_process_sentence:
                     result = runner.invoke(main, ["Hello", "world"])
                     assert result.exit_code == 0
 
@@ -139,8 +139,8 @@ def test_main_with_file() -> None:
             f.write("Hello\nWorld\n")
 
         # Mock environment and Anki checks to pass
-        with patch("langki.cli.check_environment", return_value=(True, "All good")):
-            with patch("langki.cli.AnkiClient") as mock_anki_client_class:
+        with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
+            with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
                 mock_anki_client = MagicMock()
                 mock_anki_client.check_connection.return_value = (True, "Connected")
                 mock_anki_client_class.return_value = mock_anki_client
@@ -148,9 +148,9 @@ def test_main_with_file() -> None:
                 # Mock load_config to return a config with last_used_deck set to "Smalltalk"
                 mock_config = MagicMock()
                 mock_config.last_used_deck = "Smalltalk"
-                with patch("langki.cli.load_config", return_value=mock_config):
+                with patch("add2anki.cli.load_config", return_value=mock_config):
                     # Mock process_sentence
-                    with patch("langki.cli.process_sentence") as mock_process_sentence:
+                    with patch("add2anki.cli.process_sentence") as mock_process_sentence:
                         result = runner.invoke(main, ["--file", "sentences.txt"])
                         assert result.exit_code == 0
 

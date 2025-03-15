@@ -1,4 +1,4 @@
-# Justfile for langki project
+# Justfile for add2anki project
 
 # Install dependencies
 setup:
@@ -25,7 +25,7 @@ lint:
 
 # Run type checking with mypy
 tc:
-    uv run --dev pyright langki
+    uv run --dev pyright add2anki
 
 # Run tests with pytest
 test *ARGS:
@@ -37,4 +37,4 @@ check: fmt tc test
 
 # Run the application
 run *ARGS:
-    uv run python -m langki.cli {{ARGS}}
+    uv run python -m add2anki.cli {{ARGS}}

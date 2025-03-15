@@ -1,4 +1,4 @@
-# Langki — add language study cards to Anki
+# add2anki — add language study cards to Anki
 A CLI tool to add language learning cards to Anki, with automatic translation and audio generation.
 
 Currently supports English to Mandarin Chinese translation with audio generation using three providers:
@@ -36,7 +36,7 @@ Currently supports English to Mandarin Chinese translation with audio generation
 ## Installation
 
 1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/)
-2. Run `uv tool install https://github.com/osteele/langki.git`
+2. Run `uv tool install https://github.com/osteele/add2anki.git@release`
 
 ## Environment Variables
 
@@ -59,52 +59,52 @@ export ELEVENLABS_API_KEY=your_elevenlabs_api_key
 
 ```bash
 # Basic usage (uses Google Translate TTS by default)
-langki "Hello, how are you?"
+add2anki "Hello, how are you?"
 
 # Words without spaces will be joined into a sentence
-langki Hello how are you
+add2anki Hello how are you
 
 # Specify a different Anki deck
-langki --deck "Chinese" "Hello, how are you?"
+add2anki --deck "Chinese" "Hello, how are you?"
 
 # Specify a different translation style
-langki --style formal "Hello, how are you?"
-langki --style written "Hello, how are you?"
+add2anki --style formal "Hello, how are you?"
+add2anki --style written "Hello, how are you?"
 
 # Specify a note type
-langki --note-type "Basic" "Hello, how are you?"
+add2anki --note-type "Basic" "Hello, how are you?"
 
 # Use a different audio provider
-langki --audio-provider google-cloud "Hello, how are you?"
-langki --audio-provider elevenlabs "Hello, how are you?"
+add2anki --audio-provider google-cloud "Hello, how are you?"
+add2anki --audio-provider elevenlabs "Hello, how are you?"
 
 # Combine options
-langki --deck "Business Chinese" --style formal --audio-provider elevenlabs "Hello, how are you?"
+add2anki --deck "Business Chinese" --style formal --audio-provider elevenlabs "Hello, how are you?"
 ```
 
 ### File Input
 
 ```bash
 # Process sentences from a file (one per line)
-langki --file sentences.txt
+add2anki --file sentences.txt
 
 # Combine with other options
-langki --file sentences.txt --deck "Chinese" --style written --audio-provider google-cloud
+add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider google-cloud
 ```
 
 ### Interactive Mode
 
 ```bash
 # Start interactive mode
-langki
+add2anki
 
 # Start interactive mode with specific options
-langki --deck "Chinese" --style formal --audio-provider elevenlabs
+add2anki --deck "Chinese" --style formal --audio-provider elevenlabs
 ```
 
 ## Note Type Selection
 
-Langki will automatically detect suitable note types in your Anki collection. A suitable note type must have fields that match:
+add2anki will automatically detect suitable note types in your Anki collection. A suitable note type must have fields that match:
 
 - Hanzi/Chinese/Characters for the Chinese characters
 - Pinyin/Pronunciation/Reading for the pronunciation
@@ -116,10 +116,10 @@ You can also specify a note type directly with the `--note-type` option.
 
 ## Configuration
 
-Langki saves your preferences (last used deck, note type, field mappings) in a configuration file:
+add2anki saves your preferences (last used deck, note type, field mappings) in a configuration file:
 
-- On Windows: `%APPDATA%\langki\config.json`
-- On macOS/Linux: `~/.config/langki/config.json`
+- On Windows: `%APPDATA%\add2anki\config.json`
+- On macOS/Linux: `~/.config/add2anki/config.json`
 
 ## Development
 
@@ -129,8 +129,8 @@ Langki saves your preferences (last used deck, note type, field mappings) in a c
 3.
 ```bash
 # Clone the repository
-git clone https://github.com/osteele/langki.git
-cd langki
+git clone https://github.com/osteele/add2anki.git
+cd add2anki
 
 # Install dependencies
 just setup
