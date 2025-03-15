@@ -19,7 +19,7 @@ class add2ankiConfig(BaseModel):
     """Configuration for add2anki."""
 
     note_type: Optional[str] = None
-    last_used_deck: str = "Smalltalk"
+    deck_name: Optional[str] = None
 
 
 class FieldMappingBase(TypedDict):

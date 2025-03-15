@@ -107,7 +107,7 @@ add2anki
 add2anki --deck "Chinese" --style formal --audio-provider elevenlabs --tags "interactive,formal"
 ```
 
-## Note Type Selection
+## Note Type and Deck Selection
 
 add2anki will automatically detect suitable note types in your Anki collection. A suitable note type must have fields that match:
 
@@ -115,13 +115,17 @@ add2anki will automatically detect suitable note types in your Anki collection. 
 - Pinyin/Pronunciation/Reading for the pronunciation
 - English/Translation/Meaning for the English translation
 
-If multiple suitable note types are found, you'll be prompted to select one. Your selection will be saved for future use.
+If multiple suitable note types are found, you'll be prompted to select one.
 
-You can also specify a note type directly with the `--note-type` option.
+Similarly, if no deck is specified via the `--deck` option and no previously selected deck is found in the configuration, add2anki will display a list of available decks and prompt you to select one.
+
+Your selections for both note type and deck will be saved for future use.
+
+You can also specify a note type or deck directly with the `--note-type` and `--deck` options.
 
 ## Configuration
 
-add2anki saves your preferences (last used deck, note type, field mappings) in a configuration file:
+add2anki saves your preferences (deck name, note type, field mappings) in a configuration file:
 
 - On Windows: `%APPDATA%\add2anki\config.json`
 - On macOS/Linux: `~/.config/add2anki/config.json`

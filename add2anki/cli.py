@@ -219,7 +219,7 @@ def process_sentence(
         return
 
     # Update the last used deck in config
-    config.last_used_deck = deck_name
+    config.deck_name = deck_name
     if not dry_run:
         save_config(config)
 
@@ -265,7 +265,7 @@ def process_sentence(
     "--deck",
     "-d",
     default=None,
-    help="Name of the Anki deck to add cards to. Default: from config or 'Smalltalk'",
+    help="Name of the Anki deck to add cards to. If not specified, will use saved deck or prompt for selection.",
 )
 @click.option(
     "--file",
@@ -397,8 +397,56 @@ def main(
     # Load configuration
     config = load_config()
 
-    # Use deck from command line, or from config, or default
-    deck_name = deck or config.last_used_deck or "Smalltalk"
+    # Use deck from command line, or from config, or select from available decks
+    deck_name = deck or config.deck_name
+
+    # If no deck is specified, show available decks and let user choose
+    if not deck_name:
+        available_decks = anki_client.get_deck_names()
+
+        if not available_decks:
+            console.print("[bold red]Error:[/bold red] No decks found in Anki. Please create a deck first.")
+            raise click.Abort()
+
+        if len(available_decks) == 1:
+            # If there's only one deck, use it
+            deck_name = available_decks[0]
+            console.print(f"[bold green]Using deck:[/bold green] {deck_name}")
+
+            # Save the deck name in the configuration
+            config.deck_name = deck_name
+            if not dry_run:
+                save_config(config)
+        else:
+            # If there are multiple decks, ask the user to select one
+            console.print("[bold blue]Available decks:[/bold blue]")
+
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("#", style="dim")
+            table.add_column("Deck Name")
+
+            for i, name in enumerate(available_decks, 1):
+                table.add_row(str(i), name)
+
+            console.print(table)
+
+            # Ask the user to select a deck
+            selection = IntPrompt.ask(
+                "[bold blue]Select a deck[/bold blue]",
+                choices=[str(i) for i in range(1, len(available_decks) + 1)],
+                default=1,
+            )
+
+            # Get the selected deck
+            deck_name = available_decks[selection - 1]
+
+            # Save the deck name in the configuration
+            config.deck_name = deck_name
+            if not dry_run:
+                save_config(config)
+
+    # Ensure deck_name is not None at this point
+    assert deck_name is not None, "Deck name should be set by now"
 
     # Process sentences from file if provided
     if file is not None:
