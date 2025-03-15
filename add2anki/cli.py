@@ -61,6 +61,7 @@ def process_sentence(
     dry_run: bool = False,
     verbose: bool = False,
     debug: bool = False,
+    tags: Optional[str] = None,
 ) -> None:
     """Process a single sentence and add it to Anki.
 
@@ -74,6 +75,7 @@ def process_sentence(
         dry_run: If True, don't actually add to Anki
         verbose: If True, show more detailed output
         debug: If True, log debug information
+        tags: Optional comma-separated list of tags to add to the note
     """
     # Translate the sentence
     console.print(f"\n[bold blue]Translating:[/bold blue] {sentence}")
@@ -207,6 +209,13 @@ def process_sentence(
         console.print(f"[bold yellow]DRY RUN:[/bold yellow] Would add note to deck '{deck_name}'")
         console.print(f"[bold yellow]Note type:[/bold yellow] {selected_note_type or 'Chinese English -> Hanzi'}")
         console.print(f"[bold yellow]Fields:[/bold yellow] {fields}")
+        # Display tags information in dry run
+        if tags is None:
+            console.print("[bold yellow]Tags:[/bold yellow] add2anki")
+        elif tags == "":
+            console.print("[bold yellow]Tags:[/bold yellow] none")
+        else:
+            console.print(f"[bold yellow]Tags:[/bold yellow] {tags}")
         return
 
     # Update the last used deck in config
@@ -224,11 +233,27 @@ def process_sentence(
         "fields": [sound_field] if sound_field is not None else ["Sound"],
     }
 
+    # Process tags
+    note_tags = []
+    if tags is not None:
+        if tags:  # If tags is not empty string
+            note_tags = [tag.strip() for tag in tags.split(",")]
+    else:
+        note_tags = ["add2anki"]
+
+    # Display tags information
+    if verbose:
+        if note_tags:
+            console.print(f"[bold blue]Adding tags:[/bold blue] {', '.join(note_tags)}")
+        else:
+            console.print("[bold blue]No tags will be added[/bold blue]")
+
     note_id = anki_client.add_note(
         deck_name=deck_name,
         note_type=selected_note_type or "Chinese English -> Hanzi",
         fields=fields,
         audio=audio_config,
+        tags=note_tags,
     )
 
     console.print(f"[bold green]✓ Added note with ID:[/bold green] {note_id}")
@@ -278,6 +303,11 @@ def process_sentence(
     help="Note type to use. If not specified, will try to find a suitable one.",
 )
 @click.option(
+    "--tags",
+    "-t",
+    help="Comma-separated list of tags to add to the note. Default: 'add2anki'. Use empty string for no tags.",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Process sentences but don't add them to Anki",
@@ -302,6 +332,7 @@ def main(
     audio_provider: str,
     style: str,
     note_type: Optional[str],
+    tags: Optional[str],
     dry_run: bool,
     verbose: bool,
     debug: bool,
@@ -317,6 +348,8 @@ def main(
         add2anki --file sentences.txt
         add2anki --style formal "Hello, how are you?"
         add2anki --note-type "Basic" "Hello, how are you?"
+        add2anki --tags "chinese,beginner" "Hello, how are you?"
+        add2anki --tags "" "Hello, how are you?"  # No tags
         add2anki --audio-provider elevenlabs "Hello, how are you?"
         add2anki --audio-provider google-cloud "Hello, how are you?"
         add2anki --dry-run "Hello, how are you?"
@@ -350,6 +383,13 @@ def main(
         console.print(f"[bold green]✓ {env_msg}[/bold green]")
         console.print(f"[bold green]✓ Using audio provider:[/bold green] {audio_provider}")
         console.print(f"[bold green]✓ Using translation style:[/bold green] {style}")
+        if tags is not None:
+            if tags:
+                console.print(f"[bold green]✓ Using tags:[/bold green] {tags}")
+            else:
+                console.print("[bold green]✓ No tags will be added[/bold green]")
+        else:
+            console.print("[bold green]✓ Using default tag:[/bold green] add2anki")
 
     if dry_run:
         console.print("[bold yellow]Running in dry-run mode (no changes will be made to Anki)[/bold yellow]")
@@ -376,6 +416,7 @@ def main(
                         dry_run,
                         verbose,
                         debug,
+                        tags,
                     )
                 except add2ankiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
@@ -398,6 +439,7 @@ def main(
                     dry_run,
                     verbose,
                     debug,
+                    tags,
                 )
             except add2ankiError as e:
                 console.print(f"[bold red]Error processing '{joined_sentence}':[/bold red] {e}")
@@ -414,6 +456,7 @@ def main(
                         dry_run,
                         verbose,
                         debug,
+                        tags,
                     )
                 except add2ankiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
@@ -450,6 +493,7 @@ def main(
                         dry_run,
                         verbose,
                         debug,
+                        tags,
                     )
                 except add2ankiError as e:
                     console.print(f"[bold red]Error:[/bold red] {e}")

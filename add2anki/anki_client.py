@@ -100,6 +100,7 @@ class AnkiClient:
         note_type: str,
         fields: dict[str, str],
         audio: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
     ) -> int:
         """Add a note to a deck.
 
@@ -108,6 +109,7 @@ class AnkiClient:
             note_type: Type of note to add
             fields: Fields for the note
             audio: Audio data to attach to the note
+            tags: List of tags to add to the note
 
         Returns:
             Note ID
@@ -122,7 +124,7 @@ class AnkiClient:
             "modelName": note_type,
             "fields": fields,
             "options": {"allowDuplicate": False},
-            "tags": ["add2anki"],
+            "tags": tags if tags is not None else ["add2anki"],
         }
 
         # Add audio if provided
