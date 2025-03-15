@@ -90,11 +90,45 @@ add2anki --deck "Business Chinese" --style formal --audio-provider elevenlabs --
 ### File Input
 
 ```bash
-# Process sentences from a file (one per line)
+# Process sentences from a text file (one per line)
 add2anki --file sentences.txt
+
+# Process vocabulary from a CSV file (with headers)
+add2anki --file vocabulary.csv
+
+# Process vocabulary from a TSV file (with headers)
+add2anki --file vocabulary.tsv
 
 # Combine with other options
 add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider google-cloud --tags "from-file,written"
+add2anki --file vocabulary.csv --deck "Chinese" --tags "csv,imported"
+```
+
+#### CSV/TSV Format
+
+CSV and TSV files must include a header row. The column headers are matched to Anki fields (case-insensitive).
+
+For Chinese language learning, if the CSV/TSV includes columns for:
+- Chinese/Mandarin/Hanzi
+- Pinyin/Pronunciation
+- English/Translation/Meaning
+- Audio/Sound
+
+These will be mapped to the corresponding fields in your Anki note type. Missing fields will be generated automatically.
+
+Example CSV for Chinese vocabulary:
+```
+Chinese,Pinyin,English,Notes
+你好,nǐ hǎo,Hello,Common greeting
+谢谢,xiè xiè,Thank you,Polite expression
+再见,zài jiàn,Goodbye,Common farewell
+```
+
+For audio files, specify the path relative to the CSV/TSV file:
+```
+Chinese,Pinyin,English,Audio
+你好,nǐ hǎo,Hello,audio/nihao.mp3
+谢谢,xiè xiè,Thank you,audio/xiexie.mp3
 ```
 
 ### Interactive Mode
