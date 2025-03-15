@@ -20,9 +20,7 @@ def test_check_environment_missing_vars() -> None:
 
 def test_check_environment_all_vars_present() -> None:
     """Test check_environment when all environment variables are present."""
-    with patch.dict(
-        os.environ, {"OPENAI_API_KEY": "test_key", "ELEVENLABS_API_KEY": "test_key"}, clear=True
-    ):
+    with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key", "ELEVENLABS_API_KEY": "test_key"}, clear=True):
         status, message = check_environment(audio_provider="elevenlabs")
         assert status is True
         assert message == "All required environment variables are set"
@@ -74,9 +72,7 @@ def test_process_sentence() -> None:
                     )
 
                     # Verify the calls
-                    mock_translation_service.translate.assert_called_once_with(
-                        "Hello", style="conversational"
-                    )
+                    mock_translation_service.translate.assert_called_once_with("Hello", style="conversational")
                     mock_audio_service.generate_audio_file.assert_called_once_with("u4f60u597d")
                     mock_anki_client.add_note.assert_called_once()
 

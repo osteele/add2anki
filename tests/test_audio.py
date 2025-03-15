@@ -114,7 +114,11 @@ def test_elevenlabs_generate_audio_file_success() -> None:
                     # Directly mock both required attributes
                     service.eleven_labs_client = mock_client
                     # Skip the get_mandarin_chinese_voice call
-                    with patch.object(ElevenLabsAudioService, "get_mandarin_chinese_voice", return_value="voice_id_123"):
+                    with patch.object(
+                        ElevenLabsAudioService,
+                        "get_mandarin_chinese_voice",
+                        return_value="voice_id_123",
+                    ):
                         audio_path = service.generate_audio_file("你好")
 
                         assert isinstance(audio_path, str)
@@ -126,7 +130,11 @@ def test_elevenlabs_generate_audio_file_error() -> None:
     """Test audio generation when an error occurs with ElevenLabs."""
     service = ElevenLabsAudioService(eleven_labs_api_key="test_key")
     # Mock to avoid actual API calls
-    with patch.object(ElevenLabsAudioService, "get_mandarin_chinese_voice", side_effect=AudioGenerationError("Test error")):
+    with patch.object(
+        ElevenLabsAudioService,
+        "get_mandarin_chinese_voice",
+        side_effect=AudioGenerationError("Test error"),
+    ):
         with pytest.raises(AudioGenerationError, match="Audio generation failed"):
             service.generate_audio_file("你好")
 

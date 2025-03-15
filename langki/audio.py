@@ -262,7 +262,7 @@ class GoogleCloudAudioService(AudioGenerationService):
             )
 
             # Perform the text-to-speech request
-            response = self.client.synthesize_speech( # pyright: ignore[reportUnknownMemberType]
+            response = self.client.synthesize_speech(  # pyright: ignore[reportUnknownMemberType]
                 input=synthesis_input, voice=voice, audio_config=audio_config
             )
 
@@ -303,6 +303,5 @@ def create_audio_service(provider: str = "google-translate", **kwargs: Any) -> A
         return GoogleTranslateAudioService(**kwargs)
     else:
         raise ConfigurationError(
-            f"Unsupported audio provider: {provider}. "
-            "Use 'google-translate', 'google-cloud', or 'elevenlabs'."
+            f"Unsupported audio provider: {provider}. Use 'google-translate', 'google-cloud', or 'elevenlabs'."
         )

@@ -36,9 +36,7 @@ class TranslationService:
         """
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
-            raise ConfigurationError(
-                "OpenAI API key not found. Please set the OPENAI_API_KEY environment variable."
-            )
+            raise ConfigurationError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
         self.model = model
         self.client = OpenAI(api_key=self.api_key)
 
@@ -62,11 +60,11 @@ class TranslationService:
             # Create style-specific instructions
             style_instructions = {
                 "written": "Use a more formal, literary style suitable for written text. "
-                           "Prefer more sophisticated vocabulary and sentence structures.",
+                "Prefer more sophisticated vocabulary and sentence structures.",
                 "formal": "Use polite and respectful language suitable for formal situations. "
-                          "Include appropriate honorifics and formal expressions.",
+                "Include appropriate honorifics and formal expressions.",
                 "conversational": "Use casual, natural language as would be used in everyday conversation. "
-                                  "Use common expressions and colloquial terms where appropriate."
+                "Use common expressions and colloquial terms where appropriate.",
             }
 
             response = self.client.chat.completions.create(
@@ -80,7 +78,10 @@ class TranslationService:
                         f"{style_instructions[style]} "
                         f"Respond with a JSON object with the fields 'hanzi', 'pinyin', and 'english'.",
                     },
-                    {"role": "user", "content": f"Translate the following English text to Mandarin Chinese: {text}"},
+                    {
+                        "role": "user",
+                        "content": f"Translate the following English text to Mandarin Chinese: {text}",
+                    },
                 ],
             )
 
