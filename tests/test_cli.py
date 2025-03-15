@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from add2anki.cli import check_environment, main, process_sentence
+from add2anki.cli import (
+    check_environment,
+    is_chinese_learning_table,
+    main,
+    process_sentence,
+)
 
 
 def test_check_environment_missing_vars() -> None:
@@ -257,6 +262,54 @@ def test_main_with_file() -> None:
                             False,
                             None,  # tags parameter
                         )
+
+
+def test_is_chinese_learning_table() -> None:
+    """Test the is_chinese_learning_table function."""
+    # Test with Chinese-related headers
+    assert is_chinese_learning_table(["Chinese", "English", "Notes"]) is True
+    assert is_chinese_learning_table(["Mandarin", "Translation"]) is True
+    assert is_chinese_learning_table(["Word", "Hanzi", "Meaning"]) is True
+    assert is_chinese_learning_table(["ID", "chinese_word", "english_meaning"]) is True
+
+    # Test with non-Chinese-related headers
+    assert is_chinese_learning_table(["French", "English", "Notes"]) is False
+    assert is_chinese_learning_table(["Word", "Translation", "Notes"]) is False
+    assert is_chinese_learning_table(["ID", "Term", "Definition"]) is False
+
+
+def test_main_with_csv_file() -> None:
+    """Test main function with a CSV file input."""
+    runner = CliRunner()
+
+    # Create a temporary CSV file
+    with runner.isolated_filesystem():
+        with open("vocab.csv", "w") as f:
+            f.write("Chinese,Pinyin,English,Notes\n")
+            f.write("你好,ni hao,Hello,greeting\n")
+            f.write("谢谢,xie xie,Thank you,polite\n")
+
+        # Mock environment and Anki checks to pass
+        with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
+            with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
+                mock_anki_client = MagicMock()
+                mock_anki_client.check_connection.return_value = (True, "Connected")
+                mock_anki_client_class.return_value = mock_anki_client
+
+                # Mock load_config to return a config with deck_name set to "Chinese"
+                mock_config = MagicMock()
+                mock_config.deck_name = "Chinese"
+                with patch("add2anki.cli.load_config", return_value=mock_config):
+                    # Mock process_structured_file
+                    with patch("add2anki.cli.process_structured_file") as mock_process_structured_file:
+                        result = runner.invoke(main, ["--file", "vocab.csv"])
+                        assert result.exit_code == 0
+
+                        # Check that process_structured_file was called with the CSV file
+                        mock_process_structured_file.assert_called_once()
+                        call_args = mock_process_structured_file.call_args[0]
+                        assert call_args[0] == "vocab.csv"  # file path
+                        assert call_args[1] == "Chinese"  # deck name
 
 
 def test_main_with_tags() -> None:
