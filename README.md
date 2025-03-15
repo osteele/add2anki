@@ -18,6 +18,9 @@ Currently supports English to Mandarin Chinese translation with audio generation
   - Google Cloud Text-to-Speech (requires API key)
   - ElevenLabs (requires API key)
 - Add cards to Anki with translation and audio
+- Automatic detection of suitable note types and field mappings
+- Support for custom note types with field name synonyms (Hanzi/Chinese, Pinyin/Pronunciation, English/Translation)
+- Configuration saved between sessions
 - Support for batch processing from a file
 - Interactive mode for adding cards one by one
 
@@ -68,6 +71,9 @@ langki --deck "Chinese" "Hello, how are you?"
 langki --style formal "Hello, how are you?"
 langki --style written "Hello, how are you?"
 
+# Specify a note type
+langki --note-type "Basic" "Hello, how are you?"
+
 # Use a different audio provider
 langki --audio-provider google-cloud "Hello, how are you?"
 langki --audio-provider elevenlabs "Hello, how are you?"
@@ -95,6 +101,25 @@ langki
 # Start interactive mode with specific options
 langki --deck "Chinese" --style formal --audio-provider elevenlabs
 ```
+
+## Note Type Selection
+
+Langki will automatically detect suitable note types in your Anki collection. A suitable note type must have fields that match:
+
+- Hanzi/Chinese/Characters for the Chinese characters
+- Pinyin/Pronunciation/Reading for the pronunciation
+- English/Translation/Meaning for the English translation
+
+If multiple suitable note types are found, you'll be prompted to select one. Your selection will be saved for future use.
+
+You can also specify a note type directly with the `--note-type` option.
+
+## Configuration
+
+Langki saves your preferences (last used deck, note type, field mappings) in a configuration file:
+
+- On Windows: `%APPDATA%\langki\config.json`
+- On macOS/Linux: `~/.config/langki/config.json`
 
 ## Development
 

@@ -112,7 +112,7 @@ class AnkiClient:
             self.create_deck(deck_name)
 
         # Prepare the note
-        note = {
+        note: dict[str, Any] = {
             "deckName": deck_name,
             "modelName": note_type,
             "fields": fields,
@@ -165,3 +165,34 @@ class AnkiClient:
                         "Please start Anki and make sure the AnkiConnect plugin is installed.",
                     )
             return False, f"Error connecting to AnkiConnect: {e}"
+
+    def get_note_types(self) -> list[str]:
+        """Get all note types (models) from Anki.
+
+        Returns:
+            List of note type names
+        """
+        return self._request("modelNames")
+
+    def get_field_names(self, note_type: str) -> list[str]:
+        """Get field names for a specific note type.
+
+        Args:
+            note_type: The name of the note type
+
+        Returns:
+            List of field names for the note type
+        """
+        return self._request("modelFieldNames", modelName=note_type)
+
+    def get_card_templates(self, note_type: str) -> list[str]:
+        """Get card templates for a specific note type.
+
+        Args:
+            note_type: The name of the note type
+
+        Returns:
+            List of card template names for the note type
+        """
+        model_info = self._request("modelTemplates", modelName=note_type)
+        return list(model_info.keys())
