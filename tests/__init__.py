@@ -1,1 +1,1 @@
-"""Test package for langki."""
+"""Test package for add2anki."""

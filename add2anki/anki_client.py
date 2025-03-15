@@ -6,7 +6,7 @@ from typing import Any, Tuple
 import requests
 from rich.console import Console
 
-from langki.exceptions import AnkiConnectError
+from add2anki.exceptions import AnkiConnectError
 
 console = Console()
 
@@ -122,7 +122,7 @@ class AnkiClient:
             "modelName": note_type,
             "fields": fields,
             "options": {"allowDuplicate": False},
-            "tags": ["langki"],
+            "tags": ["add2anki"],
         }
 
         # Add audio if provided

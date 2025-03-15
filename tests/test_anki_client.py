@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from langki.anki_client import AnkiClient
-from langki.exceptions import AnkiConnectError
+from add2anki.anki_client import AnkiClient
+from add2anki.exceptions import AnkiConnectError
 
 
 def test_anki_client_init() -> None:

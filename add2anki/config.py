@@ -1,4 +1,4 @@
-"""Configuration management for langki."""
+"""Configuration management for add2anki."""
 
 import json
 import os
@@ -15,8 +15,8 @@ FIELD_SYNONYMS = {
 }
 
 
-class LangkiConfig(BaseModel):
-    """Configuration for langki."""
+class add2ankiConfig(BaseModel):
+    """Configuration for add2anki."""
 
     note_type: Optional[str] = None
     last_used_deck: str = "Smalltalk"
@@ -37,15 +37,15 @@ class FieldMapping(FieldMappingBase, total=False):
 
 
 def get_config_dir() -> Path:
-    """Get the configuration directory for langki.
+    """Get the configuration directory for add2anki.
 
     Returns:
         Path to the configuration directory
     """
     if os.name == "nt":  # Windows
-        config_dir = Path(os.environ.get("APPDATA", "")) / "langki"
+        config_dir = Path(os.environ.get("APPDATA", "")) / "add2anki"
     else:  # macOS, Linux, etc.
-        config_dir = Path.home() / ".config" / "langki"
+        config_dir = Path.home() / ".config" / "add2anki"
 
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
@@ -60,29 +60,29 @@ def get_config_path() -> Path:
     return get_config_dir() / "config.json"
 
 
-def load_config() -> LangkiConfig:
+def load_config() -> add2ankiConfig:
     """Load configuration from file.
 
     Returns:
-        LangkiConfig object
+        add2ankiConfig object
     """
     config_path = get_config_path()
     if config_path.exists():
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 config_data = json.load(f)
-            return LangkiConfig(**config_data)
+            return add2ankiConfig(**config_data)
         except (json.JSONDecodeError, ValueError):
             # If the config file is invalid, return default config
-            return LangkiConfig()
-    return LangkiConfig()
+            return add2ankiConfig()
+    return add2ankiConfig()
 
 
-def save_config(config: LangkiConfig) -> None:
+def save_config(config: add2ankiConfig) -> None:
     """Save configuration to file.
 
     Args:
-        config: LangkiConfig object to save
+        config: add2ankiConfig object to save
     """
     config_path = get_config_path()
     with open(config_path, "w", encoding="utf-8") as f:

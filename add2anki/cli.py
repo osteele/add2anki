@@ -1,4 +1,4 @@
-"""Command-line interface for langki."""
+"""Command-line interface for add2anki."""
 
 import logging
 import os
@@ -10,18 +10,18 @@ from rich.panel import Panel
 from rich.prompt import IntPrompt, Prompt
 from rich.table import Table
 
-from langki.anki_client import AnkiClient
-from langki.audio import AudioGenerationService, create_audio_service
+from add2anki.anki_client import AnkiClient
+from add2anki.audio import AudioGenerationService, create_audio_service
 
 # Import directly from config.py to avoid circular imports
-from langki.config import (
+from add2anki.config import (
     find_matching_field,
     find_suitable_note_types,
     load_config,
     save_config,
 )
-from langki.exceptions import LangkiError
-from langki.translation import StyleType, TranslationService
+from add2anki.exceptions import add2ankiError
+from add2anki.translation import StyleType, TranslationService
 
 console = Console()
 
@@ -312,17 +312,17 @@ def main(
     If no SENTENCES are provided and --file is not specified, the program will enter interactive mode.
 
     Examples:
-        langki "Hello, how are you?"
-        langki --deck "Chinese" "Hello, how are you?"
-        langki --file sentences.txt
-        langki --style formal "Hello, how are you?"
-        langki --note-type "Basic" "Hello, how are you?"
-        langki --audio-provider elevenlabs "Hello, how are you?"
-        langki --audio-provider google-cloud "Hello, how are you?"
-        langki --dry-run "Hello, how are you?"
-        langki --verbose "Hello, how are you?"
-        langki --debug "Hello, how are you?"
-        langki  # Interactive mode
+        add2anki "Hello, how are you?"
+        add2anki --deck "Chinese" "Hello, how are you?"
+        add2anki --file sentences.txt
+        add2anki --style formal "Hello, how are you?"
+        add2anki --note-type "Basic" "Hello, how are you?"
+        add2anki --audio-provider elevenlabs "Hello, how are you?"
+        add2anki --audio-provider google-cloud "Hello, how are you?"
+        add2anki --dry-run "Hello, how are you?"
+        add2anki --verbose "Hello, how are you?"
+        add2anki --debug "Hello, how are you?"
+        add2anki  # Interactive mode
     """
     # Configure logging if debug is enabled
     if debug:
@@ -377,7 +377,7 @@ def main(
                         verbose,
                         debug,
                     )
-                except LangkiError as e:
+                except add2ankiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
         return
 
@@ -399,7 +399,7 @@ def main(
                     verbose,
                     debug,
                 )
-            except LangkiError as e:
+            except add2ankiError as e:
                 console.print(f"[bold red]Error processing '{joined_sentence}':[/bold red] {e}")
         else:
             for sentence in sentences:
@@ -415,14 +415,14 @@ def main(
                         verbose,
                         debug,
                     )
-                except LangkiError as e:
+                except add2ankiError as e:
                     console.print(f"[bold red]Error processing '{sentence}':[/bold red] {e}")
         return
 
     # Interactive mode
     console.print(
         Panel(
-            "[bold]Welcome to langki![/bold]\n\n"
+            "[bold]Welcome to add2anki![/bold]\n\n"
             "Enter English sentences to add to your Anki deck.\n"
             "Press Ctrl+C or type 'exit' to quit.",
             title="Interactive Mode",
@@ -451,7 +451,7 @@ def main(
                         verbose,
                         debug,
                     )
-                except LangkiError as e:
+                except add2ankiError as e:
                     console.print(f"[bold red]Error:[/bold red] {e}")
         except KeyboardInterrupt:
             console.print("\n[bold blue]Exiting...[/bold blue]")

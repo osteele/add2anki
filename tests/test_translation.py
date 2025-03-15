@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from langki.exceptions import ConfigurationError
-from langki.translation import TranslationResult, TranslationService
+from add2anki.exceptions import ConfigurationError
+from add2anki.translation import TranslationResult, TranslationService
 
 
 def test_translation_result_model() -> None:
@@ -58,7 +58,7 @@ def test_translate_success() -> None:
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = mock_response
 
-    with patch("langki.translation.OpenAI", return_value=mock_client):
+    with patch("add2anki.translation.OpenAI", return_value=mock_client):
         service = TranslationService(api_key="test_key")
         result = service.translate("Hello")
 

@@ -6,7 +6,7 @@ from typing import Literal
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-from langki.exceptions import ConfigurationError, TranslationError
+from add2anki.exceptions import ConfigurationError, TranslationError
 
 # Define the style types
 StyleType = Literal["written", "formal", "conversational"]

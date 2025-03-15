@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from langki.audio import (
+from add2anki.audio import (
     ElevenLabsAudioService,
     create_audio_service,
 )
-from langki.exceptions import AudioGenerationError, ConfigurationError
+from add2anki.exceptions import AudioGenerationError, ConfigurationError
 
 
 def test_elevenlabs_audio_service_init_no_api_key() -> None:
@@ -50,7 +50,7 @@ def test_get_mandarin_chinese_voice_success() -> None:
     mock_client = MagicMock()
     mock_client.voices.get_all.return_value = mock_response
 
-    with patch("langki.audio.ElevenLabs", return_value=mock_client):
+    with patch("add2anki.audio.ElevenLabs", return_value=mock_client):
         service = ElevenLabsAudioService(eleven_labs_api_key="test_key")
         # Mock the eleven_labs_client to avoid actual API calls
         service.eleven_labs_client = mock_client
@@ -71,7 +71,7 @@ def test_get_mandarin_chinese_voice_fallback_to_multilingual() -> None:
     mock_client = MagicMock()
     mock_client.voices.get_all.return_value = mock_response
 
-    with patch("langki.audio.ElevenLabs", return_value=mock_client):
+    with patch("add2anki.audio.ElevenLabs", return_value=mock_client):
         service = ElevenLabsAudioService(eleven_labs_api_key="test_key")
         # Mock the eleven_labs_client to avoid actual API calls
         service.eleven_labs_client = mock_client
@@ -92,7 +92,7 @@ def test_get_mandarin_chinese_voice_fallback_to_any() -> None:
     mock_client = MagicMock()
     mock_client.voices.get_all.return_value = mock_response
 
-    with patch("langki.audio.ElevenLabs", return_value=mock_client):
+    with patch("add2anki.audio.ElevenLabs", return_value=mock_client):
         service = ElevenLabsAudioService(eleven_labs_api_key="test_key")
         # Mock the eleven_labs_client to avoid actual API calls
         service.eleven_labs_client = mock_client
@@ -106,7 +106,7 @@ def test_elevenlabs_generate_audio_file_success() -> None:
     mock_client = MagicMock()
     mock_client.text_to_speech.convert.return_value = mock_audio_data
 
-    with patch("langki.audio.ElevenLabs", return_value=mock_client):
+    with patch("add2anki.audio.ElevenLabs", return_value=mock_client):
         with patch("tempfile.gettempdir", return_value="/tmp"):
             with patch.object(Path, "mkdir"):
                 with patch("builtins.open", MagicMock()):
@@ -142,17 +142,17 @@ def test_elevenlabs_generate_audio_file_error() -> None:
 def test_create_audio_service() -> None:
     """Test the create_audio_service factory function."""
     # Test with google-translate provider
-    with patch("langki.audio.GoogleTranslateAudioService") as mock_google_translate:
+    with patch("add2anki.audio.GoogleTranslateAudioService") as mock_google_translate:
         create_audio_service("google-translate")
         mock_google_translate.assert_called_once()
 
     # Test with google-cloud provider
-    with patch("langki.audio.GoogleCloudAudioService") as mock_google_cloud:
+    with patch("add2anki.audio.GoogleCloudAudioService") as mock_google_cloud:
         create_audio_service("google-cloud")
         mock_google_cloud.assert_called_once()
 
     # Test with elevenlabs provider
-    with patch("langki.audio.ElevenLabsAudioService") as mock_elevenlabs:
+    with patch("add2anki.audio.ElevenLabsAudioService") as mock_elevenlabs:
         create_audio_service("elevenlabs")
         mock_elevenlabs.assert_called_once()
 

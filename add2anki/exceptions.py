@@ -1,37 +1,37 @@
-"""Custom exceptions for the langki package."""
+"""Custom exceptions for the add2anki package."""
 
 
-class LangkiError(Exception):
-    """Base exception for all langki errors."""
+class add2ankiError(Exception):
+    """Base exception for all add2anki errors."""
 
     pass
 
 
-class AnkiConnectError(LangkiError):
+class AnkiConnectError(add2ankiError):
     """Exception raised when there is an error communicating with AnkiConnect."""
 
     pass
 
 
-class AnkiConnectionError(LangkiError):
+class AnkiConnectionError(add2ankiError):
     """Exception raised when there is an error connecting to Anki."""
 
     pass
 
 
-class TranslationError(LangkiError):
+class TranslationError(add2ankiError):
     """Exception raised when there is an error with the translation service."""
 
     pass
 
 
-class AudioGenerationError(LangkiError):
+class AudioGenerationError(add2ankiError):
     """Exception raised when there is an error generating audio."""
 
     pass
 
 
-class ConfigurationError(LangkiError):
+class ConfigurationError(add2ankiError):
     """Exception raised when there is a configuration error (e.g., missing API keys)."""
 
     pass
