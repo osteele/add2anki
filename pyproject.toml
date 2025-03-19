@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "CLI tool to add language learning cards to Anki"
 authors = [{ name = "Oliver Steele", email = "steele@osteele.com" }]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "click>=8.1.7",
     "rich>=13.7.0",
@@ -16,19 +16,22 @@ dependencies = [
     "openai>=1.13.3",
     "elevenlabs>=0.2.26",
     "requests>=2.31.0",
-    "google-cloud-texttospeech>=2.14.1",
-    "pyright>=1.1.396",
 ]
 
 [project.scripts]
 add2anki = "add2anki.cli:main"
 
 [dependency-groups]
-dev = ["ruff>=0.1.9", "pyright>=1.1.394", "pytest>=7.4.4", "pre-commit>=3.5.0"]
+dev = [
+    "ruff>=0.1.9",
+    "pyright>=1.1.396",
+    "pytest>=7.4.4",
+    "pre-commit>=3.5.0",
+]
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py311"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`), pycodestyle (`E`), and import sorting (`I`)
@@ -41,5 +44,5 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.pyright]
-python_version = "3.12"
+python_version = "3.11"
 typeCheckingMode = "strict"

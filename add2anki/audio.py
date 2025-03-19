@@ -10,10 +10,6 @@ from typing import Any, List, Optional, cast
 
 import elevenlabs.client
 
-# Ignore the missing stub file for google.cloud
-# pyright: reportMissingTypeStubs=false
-from google.cloud import texttospeech
-
 from add2anki.exceptions import AudioGenerationError, ConfigurationError
 
 # Create an alias for the tests to mock
@@ -78,7 +74,10 @@ class GoogleTranslateAudioService(AudioGenerationService):
             # Set up headers to mimic a browser request
             headers = {
                 "Referer": "https://translate.google.com/",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/91.0.4472.124 Safari/537.36"
+                ),
             }
 
             # Create the request
@@ -206,88 +205,13 @@ class ElevenLabsAudioService(AudioGenerationService):
             raise AudioGenerationError(f"Audio generation failed: {e}")
 
 
-class GoogleCloudAudioService(AudioGenerationService):
-    """Service for generating audio using Google Cloud Text-to-Speech API."""
-
-    def __init__(self, google_credentials_path: Optional[str] = None) -> None:
-        """Initialize the Google Cloud audio service.
-
-        Args:
-            google_credentials_path: Path to Google Cloud credentials file.
-                If None, will use the GOOGLE_APPLICATION_CREDENTIALS environment variable.
-
-        Raises:
-            ConfigurationError: If credentials are not properly configured.
-        """
-        # Check if credentials are available
-        if google_credentials_path:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = google_credentials_path
-        elif not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-            raise ConfigurationError(
-                "Google Cloud credentials not found. Either provide a path to credentials "
-                "or set the GOOGLE_APPLICATION_CREDENTIALS environment variable."
-            )
-
-        try:
-            # Initialize the Google Cloud Text-to-Speech client
-            self.client = texttospeech.TextToSpeechClient()
-        except Exception as e:
-            raise ConfigurationError(f"Failed to initialize Google Cloud Text-to-Speech client: {e}")
-
-    def generate_audio_file(self, text: str) -> str:
-        """Generate audio for the given text using Google Cloud Text-to-Speech.
-
-        Args:
-            text: The text to generate audio for (in Mandarin).
-
-        Returns:
-            Path to the generated audio file.
-
-        Raises:
-            AudioGenerationError: If there is an error generating the audio.
-        """
-        try:
-            # Set the text input to be synthesized
-            synthesis_input = texttospeech.SynthesisInput(text=text)
-
-            # Build the voice request, specifying Mandarin Chinese (zh-CN)
-            voice = texttospeech.VoiceSelectionParams(
-                language_code="zh-CN",
-                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE,
-            )
-
-            # Select the type of audio file to return
-            audio_config = texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3,
-            )
-
-            # Perform the text-to-speech request
-            response = self.client.synthesize_speech(  # pyright: ignore[reportUnknownMemberType]
-                input=synthesis_input, voice=voice, audio_config=audio_config
-            )
-
-            # Save to a temporary file
-            temp_dir = Path(tempfile.gettempdir()) / "add2anki"
-            temp_dir.mkdir(exist_ok=True)
-            audio_file_path = temp_dir / f"{hash(text)}.mp3"
-
-            with open(audio_file_path, "wb") as file:
-                file.write(response.audio_content)
-
-            return str(audio_file_path)
-
-        except Exception as e:
-            raise AudioGenerationError(f"Audio generation failed: {e}")
-
-
 def create_audio_service(provider: str = "google-translate", **kwargs: Any) -> AudioGenerationService:
     """Create an audio service based on the specified provider.
 
     Args:
-        provider: The audio service provider to use ('google-translate', 'google-cloud', or 'elevenlabs').
+        provider: The audio service provider to use ('google-translate' or 'elevenlabs').
         **kwargs: Additional arguments to pass to the service constructor.
             - eleven_labs_api_key: API key for ElevenLabs (for 'elevenlabs' provider)
-            - google_credentials_path: Path to Google Cloud credentials (for 'google-cloud' provider)
 
     Returns:
         An instance of AudioGenerationService.
@@ -297,11 +221,7 @@ def create_audio_service(provider: str = "google-translate", **kwargs: Any) -> A
     """
     if provider.lower() == "elevenlabs":
         return ElevenLabsAudioService(**kwargs)
-    elif provider.lower() == "google-cloud":
-        return GoogleCloudAudioService(**kwargs)
     elif provider.lower() == "google-translate":
         return GoogleTranslateAudioService(**kwargs)
     else:
-        raise ConfigurationError(
-            f"Unsupported audio provider: {provider}. Use 'google-translate', 'google-cloud', or 'elevenlabs'."
-        )
+        raise ConfigurationError(f"Unsupported audio provider: {provider}. Use 'google-translate' or 'elevenlabs'.")

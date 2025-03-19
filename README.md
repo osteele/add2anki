@@ -3,7 +3,6 @@ A CLI tool to add language learning cards to Anki, with automatic translation an
 
 Currently supports English to Mandarin Chinese translation with audio generation using three providers:
 - Google Translate TTS (default, no authentication required)
-- Google Cloud Text-to-Speech (requires API key)
 - ElevenLabs (requires API key)
 
 ## Features
@@ -15,7 +14,6 @@ Currently supports English to Mandarin Chinese translation with audio generation
   - `written`: Literary style suitable for written texts
 - Generate high-quality audio for Chinese text using one of three providers:
   - Google Translate TTS (default, no authentication required)
-  - Google Cloud Text-to-Speech (requires API key)
   - ElevenLabs (requires API key)
 - Add cards to Anki with translation and audio
 - Add custom tags to notes or use the default "add2anki" tag
@@ -27,17 +25,16 @@ Currently supports English to Mandarin Chinese translation with audio generation
 
 ## Prerequisites
 
-- Python 3.12 or higher
+- Python 3.11 or higher
 - [Anki](https://apps.ankiweb.net/) with the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin installed
 - OpenAI API key
 - For audio generation (optional, as Google Translate is used by default):
-  - Google Cloud credentials (for Google Cloud TTS)
   - ElevenLabs API key (for ElevenLabs)
 
 ## Installation
 
 1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/)
-2. Run `uv tool install https://github.com/osteele/add2anki.git@release`
+2. Run `uv tool install git_https://github.com/osteele/add2anki@release`
 
 ## Environment Variables
 
@@ -46,9 +43,6 @@ Set the following environment variables:
 ```bash
 # Required for translation
 export OPENAI_API_KEY=your_openai_api_key
-
-# Required only if using Google Cloud Text-to-Speech
-export GOOGLE_APPLICATION_CREDENTIALS=path/to/your/credentials.json
 
 # Required only if using ElevenLabs
 export ELEVENLABS_API_KEY=your_elevenlabs_api_key
@@ -80,7 +74,6 @@ add2anki --tags "chinese,beginner" "Hello, how are you?"
 add2anki --tags "" "Hello, how are you?"  # No tags (default is "add2anki")
 
 # Use a different audio provider
-add2anki --audio-provider google-cloud "Hello, how are you?"
 add2anki --audio-provider elevenlabs "Hello, how are you?"
 
 # Combine options
@@ -117,7 +110,7 @@ For Chinese language learning, if the CSV/TSV includes columns for:
 These will be mapped to the corresponding fields in your Anki note type. Missing fields will be generated automatically.
 
 Example CSV for Chinese vocabulary:
-```
+```csv
 Chinese,Pinyin,English,Notes
 你好,nǐ hǎo,Hello,Common greeting
 谢谢,xiè xiè,Thank you,Polite expression
@@ -125,7 +118,7 @@ Chinese,Pinyin,English,Notes
 ```
 
 For audio files, specify the path relative to the CSV/TSV file:
-```
+```csv
 Chinese,Pinyin,English,Audio
 你好,nǐ hǎo,Hello,audio/nihao.mp3
 谢谢,xiè xiè,Thank you,audio/xiexie.mp3
@@ -217,7 +210,6 @@ This project relies on several excellent libraries:
 Services:
 - [openai](https://github.com/openai/openai-python) for transcription and translation
 - [elevenlabs](https://github.com/elevenlabs/elevenlabs-python) for audio generation
-- [google-cloud-texttospeech](https://github.com/googleapis/python-texttospeech) for Google Cloud TTS
 
 ## License
 
