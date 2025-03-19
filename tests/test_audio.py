@@ -146,11 +146,6 @@ def test_create_audio_service() -> None:
         create_audio_service("google-translate")
         mock_google_translate.assert_called_once()
 
-    # Test with google-cloud provider
-    with patch("add2anki.audio.GoogleCloudAudioService") as mock_google_cloud:
-        create_audio_service("google-cloud")
-        mock_google_cloud.assert_called_once()
-
     # Test with elevenlabs provider
     with patch("add2anki.audio.ElevenLabsAudioService") as mock_elevenlabs:
         create_audio_service("elevenlabs")

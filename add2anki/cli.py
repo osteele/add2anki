@@ -149,8 +149,6 @@ def check_environment(audio_provider: str) -> Tuple[bool, str]:
     # Check for provider-specific environment variables
     if audio_provider.lower() == "elevenlabs" and not os.environ.get("ELEVENLABS_API_KEY"):
         missing_vars.append("ELEVENLABS_API_KEY")
-    elif audio_provider.lower() == "google-cloud" and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-        missing_vars.append("GOOGLE_APPLICATION_CREDENTIALS")
     # Google Translate doesn't require any credentials
 
     if missing_vars:
@@ -310,12 +308,12 @@ def process_structured_file(
             # Find note types that have fields matching our CSV headers
             compatible_note_types: List[str] = []
             for nt in all_note_types:
-                field_list = anki_client.get_field_names(nt)
-                field_list_lower = [f.lower() for f in field_list]
+                field_names = anki_client.get_field_names(nt)
+                field_names_lower = [f.lower() for f in field_names]
                 headers_lower = [h.lower() for h in headers]
 
                 # Check if there's some overlap between headers and fields
-                if any(h in field_list_lower for h in headers_lower):
+                if any(h in field_names_lower for h in headers_lower):
                     compatible_note_types.append(nt)
 
             if not compatible_note_types:
@@ -337,8 +335,8 @@ def process_structured_file(
                 table.add_column("Fields")
 
                 for i, nt_name in enumerate(compatible_note_types, 1):
-                    fields = anki_client.get_field_names(nt_name)
-                    fields_str = ", ".join(fields)
+                    field_names = anki_client.get_field_names(nt_name)
+                    fields_str = ", ".join(field_names)
 
                     table.add_row(
                         str(i),
@@ -359,10 +357,10 @@ def process_structured_file(
                 selected_note_type = compatible_note_types[selection - 1]
 
     # At this point we have a selected note type
-    field_list = anki_client.get_field_names(selected_note_type)
+    field_names = anki_client.get_field_names(selected_note_type)
 
     # Map CSV/TSV headers to Anki fields
-    field_mapping = map_csv_headers_to_anki_fields(headers, field_list)
+    field_mapping = map_csv_headers_to_anki_fields(headers, field_names)
 
     if not field_mapping:
         console.print("[bold red]Error:[/bold red] Could not map any CSV/TSV headers to Anki fields.")
@@ -380,7 +378,7 @@ def process_structured_file(
     console.print(field_table)
 
     # Check for any unmapped Anki fields
-    unmapped_fields = [f for f in field_list if f not in field_mapping]
+    unmapped_fields = [f for f in field_names if f not in field_mapping]
     if unmapped_fields:
         console.print(f"[bold yellow]Warning:[/bold yellow] Unmapped Anki fields: {', '.join(unmapped_fields)}")
 
@@ -420,7 +418,7 @@ def process_structured_file(
                 english_field = None
                 sound_field = None
 
-                for field in field_list:
+                for field in field_names:
                     if not hanzi_field and find_matching_field(field, "hanzi"):
                         hanzi_field = field
                     elif not pinyin_field and find_matching_field(field, "pinyin"):
@@ -493,7 +491,7 @@ def process_structured_file(
                         if audio_path.exists():
                             # Find an Anki field that might be for audio
                             sound_field = next(
-                                (f for f in field_list if "sound" in f.lower() or "audio" in f.lower()), None
+                                (f for f in field_names if "sound" in f.lower() or "audio" in f.lower()), None
                             )
                             if sound_field:
                                 audio_config = {
@@ -659,7 +657,7 @@ def process_sentence(
     # Get field mappings for the selected note type
     field_mapping = {}
     if selected_note_type:
-        field_list = anki_client.get_field_names(selected_note_type)
+        field_names = anki_client.get_field_names(selected_note_type)
 
         # Find matching fields
         hanzi_field = None
@@ -667,7 +665,7 @@ def process_sentence(
         english_field = None
         sound_field = None
 
-        for field in field_list:
+        for field in field_names:
             if not hanzi_field and find_matching_field(field, "hanzi"):
                 hanzi_field = field
             elif not pinyin_field and find_matching_field(field, "pinyin"):
@@ -785,7 +783,7 @@ def process_sentence(
 @click.option(
     "--audio-provider",
     "-a",
-    type=click.Choice(["google-translate", "google-cloud", "elevenlabs"], case_sensitive=False),
+    type=click.Choice(["google-translate", "elevenlabs"], case_sensitive=False),
     default="google-translate",
     help="Audio generation service to use. Default: google-translate",
 )
