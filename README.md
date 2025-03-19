@@ -88,13 +88,16 @@ add2anki --file sentences.txt
 
 # Process vocabulary from a CSV file (with headers)
 add2anki --file vocabulary.csv
+# You can also specify the CSV/TSV file directly as an argument without the --file option
+add2anki vocabulary.csv
 
 # Process vocabulary from a TSV file (with headers)
 add2anki --file vocabulary.tsv
+add2anki vocabulary.tsv
 
 # Combine with other options
-add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider google-cloud --tags "from-file,written"
-add2anki --file vocabulary.csv --deck "Chinese" --tags "csv,imported"
+add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider elevenlabs --tags "from-file,written"
+add2anki vocabulary.csv --deck "Chinese" --tags "csv,imported"
 ```
 
 #### CSV/TSV Format

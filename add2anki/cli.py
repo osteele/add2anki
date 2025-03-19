@@ -837,6 +837,7 @@ def main(
     """Add language learning cards to Anki.
 
     If SENTENCES are provided, they will be processed and added to Anki.
+    If the first and only sentence argument is a path to a .csv or .tsv file, it will be processed as a file input.
     If no SENTENCES are provided and --file is not specified, the program will enter interactive mode.
 
     Examples:
@@ -848,6 +849,7 @@ def main(
 
         # Process a CSV or TSV file (with headers)
         add2anki --file vocabulary.csv
+        add2anki vocabulary.csv  # You can also specify a .csv or .tsv file directly as an argument
         add2anki --file vocabulary.tsv --deck "Chinese" --tags "csv,imported"
 
         add2anki --style formal "Hello, how are you?"
@@ -952,16 +954,29 @@ def main(
     # Ensure deck_name is not None at this point
     assert deck_name is not None, "Deck name should be set by now"
 
+    # Check if a single positional argument is a CSV or TSV file
+    csv_file_arg = None
+    if not file and sentences and len(sentences) == 1:
+        potential_file = pathlib.Path(sentences[0])
+        if potential_file.exists() and potential_file.is_file() and potential_file.suffix.lower() in [".csv", ".tsv"]:
+            csv_file_arg = str(potential_file)
+            console.print(
+                f"[bold blue]Detected {potential_file.suffix.lower()[1:].upper()} file:[/bold blue] {potential_file}"
+            )
+            # Clear sentences so they won't be processed later
+            sentences = ()
+
     # Process sentences from file if provided
-    if file is not None:
-        file_path = pathlib.Path(file)
+    file_to_process = file or csv_file_arg
+    if file_to_process is not None:
+        file_path = pathlib.Path(file_to_process)
         file_ext = file_path.suffix.lower()
 
         # Check if it's a CSV or TSV file
         if file_ext in [".csv", ".tsv"]:
             try:
                 process_structured_file(
-                    file,
+                    file_to_process,
                     deck_name,
                     anki_client,
                     audio_provider,
@@ -976,7 +991,7 @@ def main(
                 console.print(f"[bold red]Error processing file:[/bold red] {e}")
         else:
             # Traditional text file processing (one sentence per line)
-            with open(file, "r", encoding="utf-8") as f:
+            with open(file_to_process, "r", encoding="utf-8") as f:
                 file_sentences = [line.strip() for line in f if line.strip()]
                 for sentence in file_sentences:
                     try:
