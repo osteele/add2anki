@@ -156,6 +156,95 @@ def check_environment(audio_provider: str) -> Tuple[bool, str]:
     return True, "All required environment variables are set"
 
 
+def get_required_field(anki_client: AnkiClient, note_type: str) -> Optional[str]:
+    """Get the required field for a note type.
+
+    Args:
+        anki_client: AnkiClient instance
+        note_type: The name of the note type
+
+    Returns:
+        The name of the required field, or None if not available
+    """
+    # First try to get the sort field, which is often the required field
+    required_field = anki_client.get_model_sort_field(note_type)
+
+    # If that fails, fall back to the first field
+    if required_field is None:
+        required_field = anki_client.get_first_field(note_type)
+
+    return required_field
+
+
+def filter_compatible_note_types(anki_client: AnkiClient, headers: Sequence[str]) -> List[str]:
+    """Filter note types to only include those that have compatible required fields.
+
+    Args:
+        anki_client: AnkiClient instance
+        headers: CSV/TSV headers
+
+    Returns:
+        List of compatible note type names
+    """
+    all_note_types = anki_client.get_note_types()
+    headers_lower = [h.lower() for h in headers]
+
+    compatible_note_types: List[str] = []
+
+    for nt in all_note_types:
+        # Check if there's some overlap between headers and fields
+        field_names = anki_client.get_field_names(nt)
+        field_names_lower = [f.lower() for f in field_names]
+
+        if any(h in field_names_lower for h in headers_lower):
+            # Get the required field
+            required_field = get_required_field(anki_client, nt)
+
+            # If required field exists, check if it can be mapped from CSV headers
+            if required_field:
+                # Create temporary field mapping
+                field_mapping = map_csv_headers_to_anki_fields(headers, field_names)
+
+                # Only include this note type if the required field can be mapped
+                if required_field in field_mapping:
+                    compatible_note_types.append(nt)
+            else:
+                # If we can't determine the required field, include it anyway
+                compatible_note_types.append(nt)
+
+    return compatible_note_types
+
+
+def check_note_type_compatibility(
+    anki_client: AnkiClient, note_type: str, headers: Sequence[str]
+) -> Tuple[bool, Optional[str]]:
+    """Check if a note type is compatible with the given headers.
+
+    Args:
+        anki_client: AnkiClient instance
+        note_type: The note type to check
+        headers: CSV/TSV headers
+
+    Returns:
+        A tuple of (is_compatible, error_message)
+    """
+    field_names = anki_client.get_field_names(note_type)
+    required_field = get_required_field(anki_client, note_type)
+
+    if required_field is None:
+        # If we can't determine the required field, assume it's compatible
+        return True, None
+
+    # Create field mapping
+    field_mapping = map_csv_headers_to_anki_fields(headers, field_names)
+
+    # Check if required field is mapped
+    if required_field not in field_mapping:
+        return False, f"Required field '{required_field}' has no matching column in the input data"
+
+    return True, None
+
+
 def process_structured_file(
     file_path: str,
     deck_name: str,
@@ -302,23 +391,13 @@ def process_structured_file(
         selected_note_type: Optional[str] = note_type
 
         if not selected_note_type:
-            # Get all note types
-            all_note_types = anki_client.get_note_types()
-
-            # Find note types that have fields matching our CSV headers
-            compatible_note_types: List[str] = []
-            for nt in all_note_types:
-                field_names = anki_client.get_field_names(nt)
-                field_names_lower = [f.lower() for f in field_names]
-                headers_lower = [h.lower() for h in headers]
-
-                # Check if there's some overlap between headers and fields
-                if any(h in field_names_lower for h in headers_lower):
-                    compatible_note_types.append(nt)
+            # Filter note types that are compatible with our CSV headers
+            compatible_note_types = filter_compatible_note_types(anki_client, headers)
 
             if not compatible_note_types:
                 console.print("[bold red]Error:[/bold red] No compatible note types found in Anki.")
-                console.print("No note type has fields that match any of the CSV headers.")
+                console.print("No note type has compatible fields that match your CSV headers.")
+                console.print(f"Your CSV has these columns: {', '.join(headers)}")
                 return
 
             if len(compatible_note_types) == 1:
@@ -333,15 +412,18 @@ def process_structured_file(
                 table.add_column("#", style="dim")
                 table.add_column("Note Type")
                 table.add_column("Fields")
+                table.add_column("Required Field")
 
                 for i, nt_name in enumerate(compatible_note_types, 1):
                     field_names = anki_client.get_field_names(nt_name)
                     fields_str = ", ".join(field_names)
+                    required_field = get_required_field(anki_client, nt_name) or "Unknown"
 
                     table.add_row(
                         str(i),
                         nt_name,
                         fields_str,
+                        required_field,
                     )
 
                 console.print(table)
@@ -358,6 +440,18 @@ def process_structured_file(
 
     # At this point we have a selected note type
     field_names = anki_client.get_field_names(selected_note_type)
+
+    # Check if this note type is compatible with our CSV headers
+    is_compatible, error_message = check_note_type_compatibility(anki_client, selected_note_type, headers)
+    if not is_compatible:
+        console.print(f"[bold red]Error:[/bold red] {error_message}")
+        console.print(f"Your CSV has these columns: {', '.join(headers)}")
+        console.print(f"Note type '{selected_note_type}' requires a field that cannot be mapped from your data.")
+        console.print("Options:")
+        console.print("  1. Add the missing column to your CSV")
+        console.print("  2. Choose a different note type")
+        console.print("  3. Rename one of your CSV columns to match the required field name")
+        return
 
     # Map CSV/TSV headers to Anki fields
     field_mapping = map_csv_headers_to_anki_fields(headers, field_names)

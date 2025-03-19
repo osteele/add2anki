@@ -1,7 +1,7 @@
 """Client for interacting with the Anki Connect API."""
 
 import json
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 import requests
 from rich.console import Console
@@ -201,5 +201,36 @@ class AnkiClient:
         Returns:
             List of card template names for the note type
         """
-        model_info = self._request("modelTemplates", modelName=note_type)
-        return list(model_info.keys())
+        templates = self._request("modelTemplates", modelName=note_type)
+        return list(templates.keys())
+
+    def get_model_sort_field(self, note_type: str) -> Optional[str]:
+        """Get the field that is used for sorting in the browser.
+
+        Args:
+            note_type: The name of the note type
+
+        Returns:
+            The name of the sort field, or None if not available
+        """
+        try:
+            model_info = self._request("modelGetJson", modelName=note_type)
+            sort_field_idx = model_info.get("sortf", 0)  # Default to first field if not found
+            field_names = self.get_field_names(note_type)
+            if 0 <= sort_field_idx < len(field_names):
+                return field_names[sort_field_idx]
+            return None
+        except Exception:
+            return None
+
+    def get_first_field(self, note_type: str) -> Optional[str]:
+        """Get the first field of a note type, which is usually the required field.
+
+        Args:
+            note_type: The name of the note type
+
+        Returns:
+            The name of the first field, or None if there are no fields
+        """
+        field_names = self.get_field_names(note_type)
+        return field_names[0] if field_names else None
