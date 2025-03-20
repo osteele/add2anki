@@ -20,7 +20,8 @@ Currently supports English to Mandarin Chinese translation with audio generation
 - Automatic detection of suitable note types and field mappings
 - Support for custom note types with field name synonyms (Hanzi/Chinese, Pinyin/Pronunciation, English/Translation)
 - Configuration saved between sessions
-- Support for batch processing from a file
+- Support for batch processing from text, CSV/TSV, or SRT subtitle files
+- Parse SRT files to create cards from Mandarin subtitles
 - Interactive mode for adding cards one by one
 
 ## Prerequisites
@@ -95,9 +96,14 @@ add2anki vocabulary.csv
 add2anki --file vocabulary.tsv
 add2anki vocabulary.tsv
 
+# Process Mandarin subtitles from an SRT file
+add2anki --file subtitles.srt
+add2anki subtitles.srt
+
 # Combine with other options
 add2anki --file sentences.txt --deck "Chinese" --style written --audio-provider elevenlabs --tags "from-file,written"
 add2anki vocabulary.csv --deck "Chinese" --tags "csv,imported"
+add2anki subtitles.srt --deck "Mandarin" --tags "movie,subtitles"
 ```
 
 #### CSV/TSV Format
@@ -125,6 +131,34 @@ For audio files, specify the path relative to the CSV/TSV file:
 Chinese,Pinyin,English,Audio
 你好,nǐ hǎo,Hello,audio/nihao.mp3
 谢谢,xiè xiè,Thank you,audio/xiexie.mp3
+```
+
+#### SRT Subtitle Format
+
+SRT files are standard subtitle files with sequential entries containing:
+1. Entry number
+2. Timestamp range (start --> end)
+3. Subtitle text (can span multiple lines)
+
+add2anki will:
+- Parse the SRT file and extract each subtitle entry
+- Skip entries containing single words only
+- Remove duplicate subtitles to avoid creating duplicate cards
+- Verify the text is Mandarin Chinese
+- Translate to English using OpenAI
+- Generate pinyin romanization for the Mandarin text
+- Generate audio for the Mandarin text
+- Create Anki cards with Mandarin text, pinyin, English translation, and audio
+
+Example SRT entry:
+```
+1
+00:00:15,000 --> 00:00:18,000
+你好，我很高兴认识你
+
+2
+00:00:20,100 --> 00:00:22,900
+我的名字是王小明
 ```
 
 ### Interactive Mode
