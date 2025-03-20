@@ -50,7 +50,8 @@ def test_translate_success() -> None:
     mock_response.choices = [
         MagicMock(
             message=MagicMock(
-                content='{"hanzi": "u4f60u597d", "pinyin": "nu01d0 hu01ceo", "english": "Hello", "style": "conversational"}'
+                content='{"hanzi": "u4f60u597d", "pinyin": "nu01d0 hu01ceo", '
+                '"english": "Hello", "style": "conversational"}'
             )
         )
     ]
