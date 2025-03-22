@@ -110,13 +110,29 @@ def verify_audio_files(file_path: str, rows: List[Dict[str, str]], audio_columns
     """
     missing_files: List[str] = []
     base_dir = pathlib.Path(file_path).parent
+    media_dir = base_dir / "media"
 
     for row_num, row in enumerate(rows, 1):
         for column in audio_columns:
             if column in row and row[column]:
-                audio_path = base_dir / row[column]
-                if not audio_path.exists():
-                    missing_files.append(f"Row {row_num}, '{column}': {row[column]}")
+                audio_value = row[column]
+
+                # Handle Anki-style sound field value
+                if audio_value.startswith("[sound:") and audio_value.endswith("]"):
+                    filename = audio_value[7:-1]  # Remove [sound: and ]
+                    # Try base directory first, then media subdirectory
+                    audio_path = base_dir / filename
+                    if not audio_path.exists():
+                        audio_path = media_dir / filename
+                        if not audio_path.exists():
+                            missing_files.append(
+                                f"Row {row_num}, '{column}': {filename} (not found in {base_dir} or {media_dir})"
+                            )
+                else:
+                    # Regular file path
+                    audio_path = base_dir / audio_value
+                    if not audio_path.exists():
+                        missing_files.append(f"Row {row_num}, '{column}': {audio_value}")
 
     return missing_files
 
@@ -581,19 +597,36 @@ def process_structured_file(
                 audio_config = None
                 for col in audio_columns:
                     if col in row and row[col]:
-                        # Found an audio file to import
-                        audio_path = pathlib.Path(file_path).parent / row[col]
+                        audio_value = row[col]
+
+                        # Handle Anki-style sound field value
+                        if audio_value.startswith("[sound:") and audio_value.endswith("]"):
+                            filename = audio_value[7:-1]  # Remove [sound: and ]
+                            # Try base directory first, then media subdirectory
+                            base_dir = pathlib.Path(file_path).parent
+                            audio_path = base_dir / filename
+                            if not audio_path.exists():
+                                audio_path = base_dir / "media" / filename
+                        else:
+                            # Regular file path
+                            audio_path = pathlib.Path(file_path).parent / audio_value
+
                         if audio_path.exists():
                             # Find an Anki field that might be for audio
                             sound_field = next(
                                 (f for f in field_names if "sound" in f.lower() or "audio" in f.lower()), None
                             )
                             if sound_field:
-                                audio_config = {
-                                    "path": str(audio_path),
-                                    "filename": os.path.basename(row[col]),
-                                    "fields": [sound_field],
-                                }
+                                # If it's an Anki-style sound field, preserve the [sound:...] format
+                                if audio_value.startswith("[sound:") and audio_value.endswith("]"):
+                                    fields[sound_field] = audio_value
+                                    audio_config = None  # Don't need audio config since we're using the field directly
+                                else:
+                                    audio_config = {
+                                        "path": str(audio_path),
+                                        "filename": os.path.basename(audio_value),
+                                        "fields": [sound_field],
+                                    }
                                 break
 
             # Show preview in dry run mode
@@ -770,12 +803,12 @@ def process_sentence(
             elif not sound_field and "sound" in field.lower():
                 sound_field = field
 
-        field_mapping = {
-            "hanzi_field": hanzi_field,
-            "pinyin_field": pinyin_field,
-            "english_field": english_field,
-            "sound_field": sound_field,
-        }
+            field_mapping = {
+                "hanzi_field": hanzi_field,
+                "pinyin_field": pinyin_field,
+                "english_field": english_field,
+                "sound_field": sound_field,
+            }
 
     # Prepare fields for the note
     fields: dict[str, str] = {}

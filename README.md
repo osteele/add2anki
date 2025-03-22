@@ -126,12 +126,26 @@ Chinese,Pinyin,English,Notes
 再见,zài jiàn,Goodbye,Common farewell
 ```
 
-For audio files, specify the path relative to the CSV/TSV file:
+For audio files, you can specify either:
+1. A path relative to the CSV/TSV file:
 ```csv
 Chinese,Pinyin,English,Audio
 你好,nǐ hǎo,Hello,audio/nihao.mp3
 谢谢,xiè xiè,Thank you,audio/xiexie.mp3
 ```
+
+2. Or an Anki-style sound field value:
+```csv
+Chinese,Pinyin,English,Audio
+你好,nǐ hǎo,Hello,[sound:audio2anki_f0adc643_7ec88127.mp3]
+谢谢,xiè xiè,Thank you,[sound:audio2anki_xiexie_123456.mp3]
+```
+
+When using Anki-style sound field values:
+- The format is `[sound:filename.mp3]`
+- The file will be looked for in:
+  1. The directory containing the CSV file
+  2. The `media` subdirectory relative to the CSV file
 
 #### SRT Subtitle Format
 
