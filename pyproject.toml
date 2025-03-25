@@ -12,8 +12,8 @@ requires-python = ">=3.11"
 dependencies = [
     "click>=8.1.7",
     "rich>=13.7.0",
-    "pydantic>=2.5.2",
-    "openai>=1.13.3",
+    "pydantic>=2.10.6",
+    "openai>=1.68.2",
     "elevenlabs>=0.2.26",
     "requests>=2.31.0",
 ]
@@ -22,12 +22,7 @@ dependencies = [
 add2anki = "add2anki.cli:main"
 
 [dependency-groups]
-dev = [
-    "ruff>=0.1.9",
-    "pyright>=1.1.396",
-    "pytest>=7.4.4",
-    "pre-commit>=3.5.0",
-]
+dev = ["ruff>=0.11.2", "pyright>=1.1.397", "pytest>=8.3.5", "pre-commit>=4.2.0"]
 
 [tool.ruff]
 line-length = 120
@@ -38,9 +33,7 @@ target-version = "py311"
 select = ["E", "F", "I"]
 
 [tool.ruff.format]
-# Use double quotes for strings
 quote-style = "double"
-# Use spaces for indentation
 indent-style = "space"
 
 [tool.pyright]

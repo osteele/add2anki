@@ -2,14 +2,14 @@
 
 # Install dependencies
 setup:
-    uv sync
+    uv sync --frozen
 
 # Default recipe to run when just is called without arguments
 default:
     @just --list
 
 # Format code with ruff
-fmt:
+format:
     uv run --dev ruff format .
     uv run --dev ruff check --fix-only .
 
@@ -23,16 +23,16 @@ lint:
     uv run --dev ruff check .
     uv run --dev pyright
 
-# Run type checking with mypy
-tc:
+# Run type checking with pyright
+typecheck:
     uv run --dev pyright add2anki
 
 # Run tests with pytest
 test *ARGS:
     uv run --dev pytest {{ARGS}}
 
-# Run all checks: formatting, type checking, and tests
-check: fmt tc test
+# Run all checks: linting, type checking, and tests
+check: lint typecheck test
     @echo "All checks passed!"
 
 # Run the application

@@ -1,10 +1,10 @@
 repos:
   - repo: local
     hooks:
-      - id: just-fmt
-        name: Format with ruff
-        description: Run just fmt to format code with ruff
-        entry: just fmt
+      - id: just-fix
+        name: Fix with ruff
+        description: Run just fix to fix code with ruff
+        entry: just fix
         language: system
         pass_filenames: false
         types: [python]
