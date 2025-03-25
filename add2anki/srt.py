@@ -107,7 +107,7 @@ def filter_srt_entries(entries: Iterator[SrtEntry]) -> Iterator[SrtEntry]:
     Yields:
         Filtered SrtEntry objects with duplicates removed
     """
-    seen_texts = set()
+    seen_texts: set[str] = set()
 
     for entry in entries:
         # Check if the subtitle is a single word

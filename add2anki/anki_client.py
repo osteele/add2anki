@@ -214,11 +214,15 @@ class AnkiClient:
             The name of the sort field, or None if not available
         """
         try:
-            model_info = self._request("modelGetJson", modelName=note_type)
-            sort_field_idx = model_info.get("sortf", 0)  # Default to first field if not found
-            field_names = self.get_field_names(note_type)
-            if 0 <= sort_field_idx < len(field_names):
+            model_info: dict[str, Any] = self._request("modelGetJson", modelName=note_type)
+            sort_field_idx: int = model_info.get("sortf", 0)  # Default to first field if not found
+            field_names: list[str] = self.get_field_names(note_type)
+
+            # Return the sort field if it exists in the field names
+            if field_names and 0 <= sort_field_idx < len(field_names):
                 return field_names[sort_field_idx]
+
+            # Otherwise return None
             return None
         except Exception:
             return None
