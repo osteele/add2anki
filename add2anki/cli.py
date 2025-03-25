@@ -1252,6 +1252,11 @@ def process_srt_file(
     is_flag=True,
     help="Enable debug logging for troubleshooting",
 )
+@click.option(
+    "--launch-anki/--no-launch-anki",
+    default=True,
+    help="Launch Anki if it's not running. Default: True",
+)
 def main(
     sentences: Tuple[str, ...],
     deck: Optional[str],
@@ -1265,6 +1270,7 @@ def main(
     dry_run: bool,
     verbose: bool,
     debug: bool,
+    launch_anki: bool,
 ) -> None:
     """Add language learning cards to Anki.
 
@@ -1297,6 +1303,7 @@ def main(
         add2anki --dry-run "Hello, how are you?"
         add2anki --verbose "Hello, how are you?"
         add2anki --debug "Hello, how are you?"
+        add2anki --no-launch-anki "Hello, how are you?"  # Don't launch Anki if it's not running
         add2anki  # Interactive mode
     """
     # Configure logging if debug is enabled
@@ -1316,11 +1323,22 @@ def main(
     # Check Anki connection
     anki_client = AnkiClient(host=host, port=port)
     anki_status, anki_msg = anki_client.check_connection()
-    if not anki_status:
+
+    # If Anki is not running and launch_anki is True, try to launch it
+    if not anki_status and launch_anki:
+        console.print("[bold blue]Anki is not running. Attempting to launch it...[/bold blue]")
+        anki_status, anki_msg = anki_client.launch_anki()
+        if anki_status:
+            console.print(f"[bold green]✓ {anki_msg}[/bold green]")
+        else:
+            console.print(f"[bold red]Error:[/bold red] {anki_msg}")
+            raise click.Abort(anki_msg)
+    elif not anki_status:
         console.print(f"[bold red]Error:[/bold red] {anki_msg}")
         raise click.Abort(anki_msg)
+    else:
+        console.print(f"[bold green]✓ {anki_msg}[/bold green]")
 
-    console.print(f"[bold green]✓ {anki_msg}[/bold green]")
     if verbose:
         console.print(f"[bold green]✓ {env_msg}[/bold green]")
         console.print(f"[bold green]✓ Using audio provider:[/bold green] {audio_provider}")

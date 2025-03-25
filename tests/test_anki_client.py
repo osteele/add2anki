@@ -93,3 +93,50 @@ def test_check_connection_failure() -> None:
 
         assert result == (False, "Connection error")
         mock_version.assert_called_once()
+
+
+def test_launch_anki_success() -> None:
+    """Test launch_anki when successful."""
+    with (
+        patch("subprocess.Popen") as mock_popen,
+        patch("time.time") as mock_time,
+        patch.object(AnkiClient, "version") as mock_version,
+    ):
+        # Mock time.time to simulate waiting
+        mock_time.side_effect = [0, 1, 2, 3]
+        # Mock version to succeed after a few attempts
+        mock_version.side_effect = [AnkiConnectError("Not ready"), AnkiConnectError("Not ready"), 6]
+
+        client = AnkiClient()
+        result = client.launch_anki(timeout=5)
+
+        assert result == (True, "Connected to AnkiConnect (version 6)")
+        mock_popen.assert_called_once()
+
+
+def test_launch_anki_timeout() -> None:
+    """Test launch_anki when it times out."""
+    with (
+        patch("subprocess.Popen") as mock_popen,
+        patch("time.time") as mock_time,
+        patch.object(AnkiClient, "version") as mock_version,
+    ):
+        # Mock time.time to simulate waiting
+        mock_time.side_effect = [0, 1, 2, 3, 4, 5]
+        # Mock version to always fail
+        mock_version.side_effect = AnkiConnectError("Not ready")
+
+        client = AnkiClient()
+        result = client.launch_anki(timeout=5)
+
+        assert result == (False, "Timeout waiting for AnkiConnect to become available after 5 seconds")
+        mock_popen.assert_called_once()
+
+
+def test_launch_anki_error() -> None:
+    """Test launch_anki when there's an error launching Anki."""
+    with patch("subprocess.Popen", side_effect=Exception("Launch error")):
+        client = AnkiClient()
+        result = client.launch_anki()
+
+        assert result == (False, "Error launching Anki: Launch error")
