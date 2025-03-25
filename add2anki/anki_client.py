@@ -173,6 +173,56 @@ class AnkiClient:
                     )
             return False, f"Error connecting to AnkiConnect: {e}"
 
+    def launch_anki(self, timeout: int = 30) -> tuple[bool, str]:
+        """Launch Anki and wait for AnkiConnect to become available.
+
+        Args:
+            timeout: Maximum time in seconds to wait for AnkiConnect to become available
+
+        Returns:
+            A tuple of (status, message)
+        """
+        import platform
+        import subprocess
+        import time
+
+        ISSUES_MESSAGE = (
+            "Background launch is not yet implemented for {system}. See docs/issues/background-launch.md for status."
+        )
+
+        system = platform.system()
+        try:
+            if system == "Darwin":  # macOS
+                subprocess.Popen(["open", "--background", "-a", "Anki"])
+            elif system == "Windows":
+                return (
+                    False,
+                    ISSUES_MESSAGE.format(system=system),
+                )
+            elif system == "Linux":
+                return (
+                    False,
+                    ISSUES_MESSAGE.format(system=system),
+                )
+            else:
+                return (
+                    False,
+                    ISSUES_MESSAGE.format(system=system),
+                )
+
+            # Wait for AnkiConnect to become available
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    version = self.version()
+                    return True, f"Connected to AnkiConnect (version {version})"
+                except AnkiConnectError:
+                    time.sleep(1)  # Wait 1 second before trying again
+
+            return False, f"Timeout waiting for AnkiConnect to become available after {timeout} seconds"
+        except Exception as e:
+            return False, f"Error launching Anki: {e}"
+
     def get_note_types(self) -> list[str]:
         """Get all note types (models) from Anki.
 
