@@ -17,6 +17,7 @@ from add2anki.audio import create_audio_service
 # Import directly from config.py to avoid circular imports
 from add2anki.config import (
     FIELD_SYNONYMS,
+    FieldMapping,
     find_matching_field,
     find_suitable_note_types,
     load_config,
@@ -33,38 +34,11 @@ console = Console()
 
 
 class AudioConfig(TypedDict):
-    """Type definition for audio configuration."""
+    """Type definition for audio configuration dictionary."""
 
     path: str
     filename: str
     fields: list[str]
-
-
-def create_audio_config(
-    audio_path: str, field_names: list[str], specific_fields: list[str] | None = None
-) -> AudioConfig:
-    """Create a standardized audio configuration dictionary.
-
-    Args:
-        audio_path: Path to the audio file
-        field_names: List of all field names in the note type
-        specific_fields: Specific fields to attach audio to.
-
-    If specific_fields is None, will find fields with 'sound' or 'audio' in their name.
-
-    Returns:
-        AudioConfig with standardized structure
-    """
-    if specific_fields:
-        fields = specific_fields
-    else:
-        fields = [field for field in field_names if "sound" in field.lower() or "audio" in field.lower()]
-
-    return {
-        "path": audio_path,
-        "filename": os.path.basename(audio_path),
-        "fields": fields,
-    }
 
 
 class AnkiClientProtocol(Protocol):
@@ -321,6 +295,109 @@ def check_note_type_compatibility(
     return True, None
 
 
+def create_audio_config(
+    audio_path: str, field_names: list[str], specific_fields: list[str] | None = None
+) -> AudioConfig:
+    """Create a standardized audio configuration dictionary.
+
+    Args:
+        audio_path: Path to the audio file
+        field_names: List of all field names in the note type
+        specific_fields: Specific fields to attach audio to.
+
+    If specific_fields is None, will find fields with 'sound' or 'audio' in their name.
+
+    Returns:
+        AudioConfig with standardized structure
+    """
+    if specific_fields:
+        fields = specific_fields
+    else:
+        fields = [field for field in field_names if "sound" in field.lower() or "audio" in field.lower()]
+
+    return {
+        "path": audio_path,
+        "filename": os.path.basename(audio_path),
+        "fields": fields,
+    }
+
+
+def display_note_types(
+    note_types: list[str] | list[tuple[str, FieldMapping]], anki_client: AnkiClientProtocol, is_chinese: bool = False
+) -> None:
+    """Display available note types in a consistent tabular format.
+
+    Args:
+        note_types: Either a list of note type names or a list of tuples containing (note_type_name, field_mapping)
+        anki_client: AnkiClient instance
+        is_chinese: Whether this is for Chinese learning (affects field highlighting)
+    """
+    table = Table(show_header=True, header_style="bold magenta", title="Available Note Types")
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Note Type", style="bold blue")
+    table.add_column("Fields", style="green")
+    table.add_column("Audio Field", style="yellow")
+    table.add_column("Card Types", style="cyan")
+
+    for i, note_type_entry in enumerate(note_types, 1):
+        # Handle both string and tuple inputs
+        if isinstance(note_type_entry, str):
+            nt = note_type_entry
+            mapping: FieldMapping = {}  # type: ignore
+        else:
+            nt, mapping = note_type_entry
+
+        # Get card templates
+        card_templates = anki_client.get_card_templates(nt)
+        cards_str = ", ".join(card_templates)
+
+        # Get all fields
+        field_names = anki_client.get_field_names(nt)
+
+        # Format fields based on type
+        formatted_fields: list[str] = []
+        for field in field_names:
+            if is_chinese:
+                hanzi_field: str = mapping.get("hanzi_field", "")
+                pinyin_field: str = mapping.get("pinyin_field", "")
+                english_field: str = mapping.get("english_field", "")
+
+                if field == hanzi_field or "hanzi" in field.lower():
+                    formatted_fields.append(f"[bold blue]{field}[/bold blue]")
+                elif field == pinyin_field or "pinyin" in field.lower():
+                    formatted_fields.append(f"[green]{field}[/green]")
+                elif field == english_field or "english" in field.lower():
+                    formatted_fields.append(f"[yellow]{field}[/yellow]")
+                else:
+                    formatted_fields.append(field)
+            else:
+                formatted_fields.append(field)
+
+        fields_str = " • ".join(formatted_fields)
+
+        # Find audio field from mapping or by name
+        sound_field: str | None = mapping.get("sound_field")
+        audio_field: str = (
+            sound_field
+            if sound_field
+            else next((f for f in field_names if "sound" in f.lower() or "audio" in f.lower()), "[dim]N/A[/dim]")
+        )
+
+        table.add_row(
+            str(i),
+            nt,
+            fields_str,
+            audio_field,
+            cards_str,
+        )
+
+    console.print(table)
+
+    if is_chinese:
+        console.print("\nField colors: [bold blue]Hanzi[/bold blue] • [green]Pinyin[/green] • [yellow]English[/yellow]")
+    console.print("Fields are separated by • bullets for better readability")
+
+
 def process_structured_file(
     file_path: str,
     deck_name: str,
@@ -420,45 +497,19 @@ def process_structured_file(
                 if not dry_run:
                     save_config(config)
             else:
-                # If there are multiple suitable note types, ask the user to select one
-                console.print("[bold blue]Multiple suitable note types found:[/bold blue]")
-
-                table = Table(show_header=True, header_style="bold magenta")
-                table.add_column("#", style="dim")
-                table.add_column("Note Type")
-                table.add_column("Translation")
-                table.add_column("Sound Field")
-                table.add_column("Cards")
-
-                for i, (note_type_name, mapping) in enumerate(suitable_note_types, 1):
-                    # Get card templates for this note type
-                    card_templates = anki_client.get_card_templates(note_type_name)
-                    cards_str = ", ".join(card_templates)
-
-                    table.add_row(
-                        str(i),
-                        note_type_name,
-                        mapping["english_field"],
-                        mapping.get("sound_field", "N/A"),
-                        cards_str,
-                    )
-
-                console.print(table)
-
-                # Ask the user to select a note type
+                display_note_types(suitable_note_types, anki_client, is_chinese=True)
                 selection = IntPrompt.ask(
                     "[bold blue]Select a note type[/bold blue]",
                     choices=[str(i) for i in range(1, len(suitable_note_types) + 1)],
                     default=1,
                 )
+                note_type_tuple = suitable_note_types[selection - 1]
+                selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
 
-                # Get the selected note type
-                selected_note_type, _ = suitable_note_types[selection - 1]
-
-                # Save only the note type in the configuration
-                config.note_type = selected_note_type
-                if not dry_run:
-                    save_config(config)
+            # Save only the note type in the configuration
+            config.note_type = selected_note_type
+            if not dry_run:
+                save_config(config)
     else:
         console.print("[bold blue]Non-Chinese language learning table detected[/bold blue]")
 
@@ -481,38 +532,14 @@ def process_structured_file(
                 selected_note_type = compatible_note_types[0]
                 console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
             else:
-                # If there are multiple compatible note types, ask the user to select one
-                console.print("[bold blue]Multiple compatible note types found:[/bold blue]")
-
-                table = Table(show_header=True, header_style="bold magenta")
-                table.add_column("#", style="dim")
-                table.add_column("Note Type")
-                table.add_column("Fields")
-                table.add_column("Required Field")
-
-                for i, nt_name in enumerate(compatible_note_types, 1):
-                    field_names = anki_client.get_field_names(nt_name)
-                    fields_str = ", ".join(field_names)
-                    required_field = get_required_field(anki_client, nt_name) or "Unknown"
-
-                    table.add_row(
-                        str(i),
-                        nt_name,
-                        fields_str,
-                        required_field,
-                    )
-
-                console.print(table)
-
-                # Ask the user to select a note type
+                display_note_types(compatible_note_types, anki_client, is_chinese=False)
                 selection = IntPrompt.ask(
                     "[bold blue]Select a note type[/bold blue]",
                     choices=[str(i) for i in range(1, len(compatible_note_types) + 1)],
                     default=1,
                 )
-
-                # Get the selected note type
-                selected_note_type = compatible_note_types[selection - 1]
+                note_type_tuple = compatible_note_types[selection - 1]
+                selected_note_type = note_type_tuple[0]
 
     # At this point we have a selected note type
     field_names = anki_client.get_field_names(selected_note_type)
@@ -783,25 +810,29 @@ def process_sentence(
         console.print(f"[blue]Target language: {target_lang}[/blue]")
 
     # Get note type
-    if not note_type:
+    selected_note_type: str
+    if note_type:
+        selected_note_type = note_type
+    else:
         note_types = find_suitable_note_types(anki_client)
         if not note_types:
             raise add2ankiError("No suitable note types found")
         if len(note_types) == 1:
             note_type_tuple = note_types[0]
-            note_type = note_type_tuple[0]  # Extract note type name from tuple
+            selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
+            console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
         else:
-            console.print("\nAvailable note types:")
-            for i, nt in enumerate(note_types, 1):
-                console.print(f"{i}. {nt}")
-            note_type_idx = (
-                IntPrompt.ask("Select note type", choices=[str(i) for i in range(1, len(note_types) + 1)]) - 1
+            display_note_types(note_types, anki_client, is_chinese=True)
+            selection = IntPrompt.ask(
+                "[bold blue]Select a note type[/bold blue]",
+                choices=[str(i) for i in range(1, len(note_types) + 1)],
+                default=1,
             )
-            note_type_tuple = note_types[note_type_idx]
-            note_type = note_type_tuple[0]
+            note_type_tuple = note_types[selection - 1]
+            selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
 
     # Get field names
-    field_names = anki_client.get_field_names(note_type)
+    field_names = anki_client.get_field_names(selected_note_type)
 
     # Create language state for REPL mode if not provided
     if state is None:
@@ -881,7 +912,7 @@ def process_sentence(
 
             note_id = anki_client.add_note(
                 deck_name=deck_name,
-                note_type=note_type,
+                note_type=selected_note_type,
                 fields=fields,
                 audio=cast(dict[str, str | list[str]], audio_config),
                 tags=note_tags,
@@ -1001,14 +1032,14 @@ def process_batch(
             note_type_tuple = note_types[0]
             note_type = note_type_tuple[0]  # Extract note type name from tuple
         else:
-            console.print("\nAvailable note types:")
-            for i, (nt, _) in enumerate(note_types, 1):
-                console.print(f"{i}. {nt}")
-            note_type_idx = (
-                IntPrompt.ask("Select note type", choices=[str(i) for i in range(1, len(note_types) + 1)]) - 1
+            display_note_types(note_types, anki_client, is_chinese=True)
+            selection = IntPrompt.ask(
+                "[bold blue]Select a note type[/bold blue]",
+                choices=[str(i) for i in range(1, len(note_types) + 1)],
+                default=1,
             )
-            note_type_tuple = note_types[note_type_idx]
-            note_type = note_type_tuple[0]
+            note_type_tuple = note_types[selection - 1]
+            note_type = note_type_tuple[0]  # Extract note type name from tuple
 
     # Get field names
     field_names = anki_client.get_field_names(note_type)
@@ -1207,98 +1238,51 @@ def process_srt_file(
         # Load or create configuration
         config = load_config()
 
-        # If note_type is provided, use it; otherwise use the one from config
-        selected_note_type: Optional[str] = note_type or config.note_type
-
-        # If we still don't have a note type, find suitable ones
-        if not selected_note_type:
-            suitable_note_types = find_suitable_note_types(anki_client)
-
-            if not suitable_note_types:
-                console.print("[bold red]Error:[/bold red] No suitable note types found in Anki.")
-                console.print(
-                    "Please create a note type with fields for Hanzi/Chinese, Pinyin/Pronunciation, "
-                    "and English/Translation."
-                )
-                return
-
-            if len(suitable_note_types) == 1:
-                # If there's only one suitable note type, use it
-                selected_note_type, _ = suitable_note_types[0]
-                console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
-
-                # Save only the note type in the configuration
-                config.note_type = selected_note_type
-                if not dry_run:
-                    save_config(config)
+        # Initialize selected_note_type
+        selected_note_type: str
+        if note_type:
+            selected_note_type = note_type
+        else:
+            # If note_type is not provided, use the one from config or find suitable ones
+            if config.note_type:
+                selected_note_type = config.note_type
             else:
-                # If there are multiple suitable note types, ask the user to select one
-                console.print("[bold blue]Multiple suitable note types found:[/bold blue]")
+                suitable_note_types = find_suitable_note_types(anki_client)
 
-                table = Table(show_header=True, header_style="bold magenta")
-                table.add_column("#", style="dim")
-                table.add_column("Note Type")
-                table.add_column("Translation")
-                table.add_column("Sound Field")
-                table.add_column("Cards")
-
-                for i, (note_type_name, mapping) in enumerate(suitable_note_types, 1):
-                    # Get card templates for this note type
-                    card_templates = anki_client.get_card_templates(note_type_name)
-                    cards_str = ", ".join(card_templates)
-
-                    table.add_row(
-                        str(i),
-                        note_type_name,
-                        mapping["english_field"],
-                        mapping.get("sound_field", "N/A"),
-                        cards_str,
+                if not suitable_note_types:
+                    console.print("[bold red]Error:[/bold red] No suitable note types found in Anki.")
+                    console.print(
+                        "Please create a note type with fields for Hanzi/Chinese, Pinyin/Pronunciation, "
+                        "and English/Translation."
                     )
+                    raise add2ankiError("No suitable note types found")
 
-                console.print(table)
+                if len(suitable_note_types) == 1:
+                    # If there's only one suitable note type, use it
+                    selected_note_type = suitable_note_types[0][0]
+                    console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
 
-                # Ask the user to select a note type
-                selection = IntPrompt.ask(
-                    "[bold blue]Select a note type[/bold blue]",
-                    choices=[str(i) for i in range(1, len(suitable_note_types) + 1)],
-                    default=1,
-                )
+                    # Save only the note type in the configuration
+                    config.note_type = selected_note_type
+                    if not dry_run:
+                        save_config(config)
+                else:
+                    display_note_types(suitable_note_types, anki_client, is_chinese=True)
+                    selection = IntPrompt.ask(
+                        "[bold blue]Select a note type[/bold blue]",
+                        choices=[str(i) for i in range(1, len(suitable_note_types) + 1)],
+                        default=1,
+                    )
+                    note_type_tuple = suitable_note_types[selection - 1]
+                    selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
 
-                # Get the selected note type
-                selected_note_type, _ = suitable_note_types[selection - 1]
-
-                # Save only the note type in the configuration
-                config.note_type = selected_note_type
-                if not dry_run:
-                    save_config(config)
+                    # Save only the note type in the configuration
+                    config.note_type = selected_note_type
+                    if not dry_run:
+                        save_config(config)
 
         # Get field mappings for the selected note type
-        field_mapping = {}
-        if selected_note_type:
-            field_names = anki_client.get_field_names(selected_note_type)
-
-            # Find matching fields
-            hanzi_field = None
-            pinyin_field = None
-            english_field = None
-            sound_field = None
-
-            for field in field_names:
-                if not hanzi_field and find_matching_field(field, "hanzi"):
-                    hanzi_field = field
-                elif not pinyin_field and find_matching_field(field, "pinyin"):
-                    pinyin_field = field
-                elif not english_field and find_matching_field(field, "english"):
-                    english_field = field
-                elif not sound_field and "sound" in field.lower():
-                    sound_field = field
-
-            field_mapping = {
-                "hanzi_field": hanzi_field,
-                "pinyin_field": pinyin_field,
-                "english_field": english_field,
-                "sound_field": sound_field,
-            }
+        field_names = anki_client.get_field_names(selected_note_type)
 
         # Update the last used deck in config
         config.deck_name = deck_name
@@ -1375,33 +1359,22 @@ def process_srt_file(
 
                     # Prepare fields for the note
                     fields: dict[str, str] = {}
-                    hanzi_field = field_mapping.get("hanzi_field")
-                    if hanzi_field is not None:
-                        fields[hanzi_field] = hanzi
-                    else:
-                        fields["Hanzi"] = hanzi
+                    hanzi_field = field_names[0] if field_names else "Hanzi"
+                    fields[hanzi_field] = hanzi
 
-                    pinyin_field = field_mapping.get("pinyin_field")
-                    if pinyin_field is not None:
-                        fields[pinyin_field] = pinyin
-                    else:
-                        fields["Pinyin"] = pinyin
+                    pinyin_field = field_names[1] if len(field_names) > 1 else "Pinyin"
+                    fields[pinyin_field] = pinyin
 
-                    english_field = field_mapping.get("english_field")
-                    if english_field is not None:
-                        fields[english_field] = english
-                    else:
-                        fields["English"] = english
+                    english_field = field_names[2] if len(field_names) > 2 else "English"
+                    fields[english_field] = english
 
                     # Get field names for the selected note type
-                    field_names = []
-                    if selected_note_type:
-                        field_names = anki_client.get_field_names(selected_note_type)
+                    field_names = [hanzi_field, pinyin_field, english_field]
 
                     # Prepare audio field
-                    sound_field = field_mapping.get("sound_field")
+                    sound_field = field_names[2] if len(field_names) > 2 else "Sound"
                     audio_config = create_audio_config(
-                        audio_path, field_names, [sound_field] if sound_field is not None else ["Sound"]
+                        audio_path, field_names, [sound_field] if sound_field in field_names else ["Sound"]
                     )
 
                     # Show preview in dry run mode
