@@ -28,7 +28,7 @@ def test_request_success() -> None:
         client = AnkiClient()
         # Using a private method in tests is acceptable in this case
         # to test the internal functionality
-        result = client._request("test_action", param1="value1")  # pylint: disable=protected-access
+        result = client._request("test_action", param1="value1")  # type: ignore  # pylint: disable=protected-access
 
         assert result == "test_result"
         mock_post.assert_called_once_with(
@@ -46,7 +46,7 @@ def test_request_error_response() -> None:
 
         client = AnkiClient()
         with pytest.raises(AnkiConnectError, match="AnkiConnect error: test_error"):
-            client._request("test_action")  # pylint: disable=protected-access
+            client._request("test_action")  # type: ignore  # pylint: disable=protected-access
 
 
 def test_request_connection_error() -> None:
@@ -56,7 +56,7 @@ def test_request_connection_error() -> None:
 
         client = AnkiClient()
         with pytest.raises(AnkiConnectError):
-            client._request("test_action")  # pylint: disable=protected-access
+            client._request("test_action")  # type: ignore  # pylint: disable=protected-access
 
 
 def test_version() -> None:

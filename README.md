@@ -128,18 +128,19 @@ Chinese,Pinyin,English,Notes
 
 For audio files, you can specify either:
 1. A path relative to the CSV/TSV file:
-```csv
-Chinese,Pinyin,English,Audio
-你好,nǐ hǎo,Hello,audio/nihao.mp3
-谢谢,xiè xiè,Thank you,audio/xiexie.mp3
-```
+  ```csv
+  Chinese,Pinyin,English,Audio
+  你好,nǐ hǎo,Hello,audio/nihao.mp3
+  谢谢,xiè xiè,Thank you,audio/xiexie.mp3
+  ```
 
 2. Or an Anki-style sound field value:
-```csv
-Chinese,Pinyin,English,Audio
-你好,nǐ hǎo,Hello,[sound:audio2anki_f0adc643_7ec88127.mp3]
-谢谢,xiè xiè,Thank you,[sound:audio2anki_xiexie_123456.mp3]
-```
+
+  ```csv
+  Chinese,Pinyin,English,Audio
+  你好,nǐ hǎo,Hello,[sound:audio2anki_f0adc643_7ec88127.mp3]
+  谢谢,xiè xiè,Thank you,[sound:audio2anki_xiexie_123456.mp3]
+  ```
 
 When using Anki-style sound field values:
 - The format is `[sound:filename.mp3]`
@@ -165,7 +166,8 @@ add2anki will:
 - Create Anki cards with Mandarin text, pinyin, English translation, and audio
 
 Example SRT entry:
-```
+
+```text
 1
 00:00:15,000 --> 00:00:18,000
 你好，我很高兴认识你
