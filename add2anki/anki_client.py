@@ -1,7 +1,7 @@
 """Client for interacting with the Anki Connect API."""
 
 import json
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, cast
 
 import requests
 from rich.console import Console
@@ -23,7 +23,7 @@ class AnkiClient:
         """
         self.url = f"http://{host}:{port}"
 
-    def _request(self, action: str, **params: Any) -> Any:
+    def _request(self, action: str, **params: object) -> Any:
         """Make a request to the AnkiConnect API.
 
         Args:
@@ -61,7 +61,7 @@ class AnkiClient:
         Returns:
             The version number
         """
-        return self._request("version")
+        return cast(int, self._request("version"))
 
     def check_connection(self) -> Tuple[bool, str]:
         """Check if we can connect to AnkiConnect.
@@ -81,7 +81,7 @@ class AnkiClient:
         Returns:
             List of deck names
         """
-        return self._request("deckNames")
+        return cast(list[str], self._request("deckNames"))
 
     def create_deck(self, deck_name: str) -> int:
         """Create a new deck.
@@ -92,14 +92,14 @@ class AnkiClient:
         Returns:
             Deck ID
         """
-        return self._request("createDeck", deck=deck_name)
+        return cast(int, self._request("createDeck", deck=deck_name))
 
     def add_note(
         self,
         deck_name: str,
         note_type: str,
         fields: dict[str, str],
-        audio: dict[str, Any] | None = None,
+        audio: dict[str, str | list[str]] | None = None,
         tags: list[str] | None = None,
     ) -> int:
         """Add a note to a deck.
@@ -119,7 +119,7 @@ class AnkiClient:
             self.create_deck(deck_name)
 
         # Prepare the note
-        note: dict[str, Any] = {
+        note = {
             "deckName": deck_name,
             "modelName": note_type,
             "fields": fields,
@@ -129,9 +129,9 @@ class AnkiClient:
 
         # Add audio if provided
         if audio:
-            note["audio"] = [audio]
+            note["audio"] = cast(Any, [audio])
 
-        return self._request("addNote", note=note)
+        return cast(int, self._request("addNote", note=note))
 
     def check_anki_status(self) -> tuple[bool, str]:
         """Check if Anki is running and AnkiConnect is available.
@@ -229,7 +229,7 @@ class AnkiClient:
         Returns:
             List of note type names
         """
-        return self._request("modelNames")
+        return cast(list[str], self._request("modelNames"))
 
     def get_field_names(self, note_type: str) -> list[str]:
         """Get field names for a specific note type.
@@ -240,7 +240,7 @@ class AnkiClient:
         Returns:
             List of field names for the note type
         """
-        return self._request("modelFieldNames", modelName=note_type)
+        return cast(list[str], self._request("modelFieldNames", modelName=note_type))
 
     def get_card_templates(self, note_type: str) -> list[str]:
         """Get card templates for a specific note type.
@@ -251,7 +251,7 @@ class AnkiClient:
         Returns:
             List of card template names for the note type
         """
-        templates = self._request("modelTemplates", modelName=note_type)
+        templates = cast(dict[str, dict[str, str]], self._request("modelTemplates", modelName=note_type))
         return list(templates.keys())
 
     def get_model_sort_field(self, note_type: str) -> Optional[str]:
@@ -264,8 +264,8 @@ class AnkiClient:
             The name of the sort field, or None if not available
         """
         try:
-            model_info: dict[str, Any] = self._request("modelGetJson", modelName=note_type)
-            sort_field_idx: int = model_info.get("sortf", 0)  # Default to first field if not found
+            model_info = cast(dict[str, Any], self._request("modelGetJson", modelName=note_type))
+            sort_field_idx = cast(int, model_info.get("sortf", 0))  # Default to first field if not found
             field_names: list[str] = self.get_field_names(note_type)
 
             # Return the sort field if it exists in the field names

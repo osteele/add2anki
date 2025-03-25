@@ -35,3 +35,9 @@ class ConfigurationError(add2ankiError):
     """Exception raised when there is a configuration error (e.g., missing API keys)."""
 
     pass
+
+
+class LanguageDetectionError(add2ankiError):
+    """Exception raised when language detection fails or is ambiguous."""
+
+    pass
