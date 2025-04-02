@@ -4,12 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from add2anki.exceptions import LanguageDetectionError
 from add2anki.language_detection import (
-    DetectionResult,
     Language,
     LanguageState,
-    detect_language,
     process_batch,
     process_sentence,
 )
@@ -34,66 +31,6 @@ def test_language_validation() -> None:
         Language("12345")  # Too long and not alpha
 
 
-def test_detect_language_with_high_confidence() -> None:
-    """Test detection with high confidence score."""
-    with patch("fast_langdetect.detect") as mock_detect:
-        mock_detect.return_value = {"lang": "zh", "score": 0.95}
-        result = detect_language("你好，最近怎么样？")
-        assert result.language == Language("zh")
-        assert result.confidence == 0.95
-        assert not result.is_ambiguous
-
-
-def test_detect_language_with_low_confidence() -> None:
-    """Test detection with low confidence score."""
-    with patch("fast_langdetect.detect") as mock_detect:
-        mock_detect.return_value = {"lang": "zh", "score": 0.45}
-        result = detect_language("我")  # Very short text
-        assert result.language == Language("zh")
-        assert result.confidence == 0.45
-        assert result.is_ambiguous  # Should be ambiguous because confidence < threshold
-
-
-def test_detect_language_string_result() -> None:
-    """Test handling string result from langdetect."""
-    with patch("fast_langdetect.detect") as mock_detect:
-        mock_detect.return_value = "en"  # Simple string result
-        result = detect_language("Hello")
-        assert result.language == Language("en")
-        assert result.confidence == 1.0  # Default high confidence
-        assert not result.is_ambiguous
-
-
-def test_detect_language_mixed_content() -> None:
-    """Test detection of mixed language content."""
-    with patch("fast_langdetect.detect") as mock_detect:
-        # Low confidence for mixed content
-        mock_detect.return_value = {"lang": "en", "score": 0.55}
-        result = detect_language("Hello 你好")
-        assert result.language == Language("en")
-        assert result.confidence == 0.55
-        assert result.is_ambiguous
-
-
-def test_detect_language_very_short_text() -> None:
-    """Test detection of very short text."""
-    with patch("fast_langdetect.detect") as mock_detect:
-        # Low confidence for very short text
-        mock_detect.return_value = {"lang": "ja", "score": 0.60}
-        result = detect_language("あ")  # Single character
-        assert result.language == Language("ja")
-        assert result.confidence == 0.60
-        assert result.is_ambiguous
-
-
-def test_detect_language_failure() -> None:
-    """Test handling of detection failure."""
-    with patch("fast_langdetect.detect") as mock_detect:
-        mock_detect.side_effect = Exception("Detection failed")
-        with pytest.raises(LanguageDetectionError):
-            detect_language("Some text")
-
-
 def test_language_state_record_language() -> None:
     """Test LanguageState recording and history."""
     state = LanguageState()
@@ -113,6 +50,12 @@ def test_language_state_record_language() -> None:
     # Most frequent should be set as detected language
     assert state.detected_language == Language("zh")
 
+    # Primary languages should include both (as both appear >10% of the time)
+    assert state.primary_languages is not None
+    assert len(state.primary_languages) == 2
+    assert Language("zh") in state.primary_languages
+    assert Language("en") in state.primary_languages
+
 
 def test_process_sentence_with_source_lang() -> None:
     """Test processing a sentence with explicit source language."""
@@ -124,8 +67,8 @@ def test_process_sentence_with_source_lang() -> None:
     mock_translation_service = MagicMock()
     mock_translation_service.translate.return_value = mock_translation
 
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        mock_detect.return_value = DetectionResult(language=Language("zh"), confidence=0.95, is_ambiguous=False)
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        mock_detect.return_value = ["zh"]  # Returns the language detection result
         process_sentence(
             "你好",
             target_lang=Language("en"),
@@ -135,8 +78,23 @@ def test_process_sentence_with_source_lang() -> None:
         mock_translation_service.translate.assert_called_once_with("你好", style="conversational")
 
 
-def test_process_sentence_ambiguous_with_state() -> None:
-    """Test processing an ambiguous sentence with REPL state."""
+def test_process_sentence_with_empty_text() -> None:
+    """Test processing an empty sentence."""
+    mock_translation_service = MagicMock()
+
+    # Process should skip empty text without error
+    process_sentence(
+        "",
+        target_lang=Language("en"),
+        translation_service=mock_translation_service,
+    )
+
+    # No translation should happen for empty text
+    mock_translation_service.translate.assert_not_called()
+
+
+def test_process_sentence_with_state() -> None:
+    """Test processing a sentence with REPL state."""
     mock_translation = MagicMock()
     mock_translation.hanzi = "你好"
     mock_translation.pinyin = "ni3 hao3"
@@ -145,46 +103,30 @@ def test_process_sentence_ambiguous_with_state() -> None:
     mock_translation_service = MagicMock()
     mock_translation_service.translate.return_value = mock_translation
 
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        # Return ambiguous result
-        mock_detect.return_value = DetectionResult(language=Language("zh"), confidence=0.55, is_ambiguous=True)
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        # Return language detection results
+        mock_detect.return_value = ["zh"]
 
         # Create a state with previous context
         state = LanguageState()
         state.record_language(Language("zh"))
         state.record_language(Language("zh"))
 
+        # Ensure primary_languages is set
+        state.primary_languages = [Language("zh")]
+
         # Process should succeed using state context
         process_sentence(
-            "你",  # Short, ambiguous text
+            "你好",
             target_lang=Language("en"),
             translation_service=mock_translation_service,
             state=state,
         )
-        mock_translation_service.translate.assert_called_once_with("你", style="conversational")
+        mock_translation_service.translate.assert_called_once_with("你好", style="conversational")
 
 
-def test_process_sentence_ambiguous_without_state() -> None:
-    """Test processing an ambiguous sentence without state context."""
-    mock_translation = MagicMock()
-    mock_translation_service = MagicMock()
-    mock_translation_service.translate.return_value = mock_translation
-
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        # Return ambiguous result
-        mock_detect.return_value = DetectionResult(language=Language("zh"), confidence=0.55, is_ambiguous=True)
-
-        # No state context provided - should raise error
-        with pytest.raises(LanguageDetectionError):
-            process_sentence(
-                "你",  # Short, ambiguous text
-                target_lang=Language("en"),
-                translation_service=mock_translation_service,
-            )
-
-
-def test_process_batch_with_confidence_thresholds() -> None:
-    """Test batch processing with different confidence thresholds."""
+def test_process_batch() -> None:
+    """Test batch processing with contextual detection."""
     mock_translation = MagicMock()
     mock_translation.hanzi = "你好"
     mock_translation.pinyin = "ni3 hao3"
@@ -192,60 +134,24 @@ def test_process_batch_with_confidence_thresholds() -> None:
     mock_translation_service = MagicMock()
     mock_translation_service.translate.return_value = mock_translation
 
-    sentences = ["Hello world", "你好，世界", "こんにちは、世界"]
+    # Mix of Chinese and English sentences
+    sentences = ["你好", "很好", "Hello", "Good day"]
 
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        # Return different confidence levels
-        mock_detect.side_effect = [
-            DetectionResult(language=Language("en"), confidence=0.95, is_ambiguous=False),
-            DetectionResult(language=Language("zh"), confidence=0.85, is_ambiguous=False),
-            DetectionResult(language=Language("ja"), confidence=0.75, is_ambiguous=False),
-        ]
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        # Mock the contextual detection
+        mock_detect.return_value = ["zh", "zh", "en", "en"]
 
+        # Process batch - target language is English
         process_batch(
             sentences,
-            target_lang=Language("zh"),
+            target_lang=Language("en"),
             translation_service=mock_translation_service,
         )
 
-        # English and Japanese should be translated to Chinese
-        # (only Chinese sentence should be skipped as it's already in target language)
+        # Only Chinese sentences should be translated to English
         assert mock_translation_service.translate.call_count == 2
-        mock_translation_service.translate.assert_any_call("Hello world", style="conversational")
-        mock_translation_service.translate.assert_any_call("こんにちは、世界", style="conversational")
-
-
-def test_process_batch_with_mixed_confidence() -> None:
-    """Test batch processing with mixed confidence levels."""
-    mock_translation = MagicMock()
-    mock_translation.hanzi = "你好"
-    mock_translation.pinyin = "ni3 hao3"
-
-    mock_translation_service = MagicMock()
-    mock_translation_service.translate.return_value = mock_translation
-
-    sentences = ["Hello", "你好", "안녕하세요", "短"]  # Last one is very short Chinese
-
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        # Return different confidence levels
-        mock_detect.side_effect = [
-            DetectionResult(language=Language("en"), confidence=0.95, is_ambiguous=False),
-            DetectionResult(language=Language("zh"), confidence=0.90, is_ambiguous=False),
-            DetectionResult(language=Language("ko"), confidence=0.85, is_ambiguous=False),
-            DetectionResult(language=Language("zh"), confidence=0.55, is_ambiguous=True),
-        ]
-
-        process_batch(
-            sentences,
-            target_lang=Language("zh"),
-            translation_service=mock_translation_service,
-        )
-
-        # English and Korean should be translated (the ambiguous Chinese might not be processed
-        # if there's not enough context)
-        assert mock_translation_service.translate.call_count == 2
-        mock_translation_service.translate.assert_any_call("Hello", style="conversational")
-        mock_translation_service.translate.assert_any_call("안녕하세요", style="conversational")
+        mock_translation_service.translate.assert_any_call("你好", style="conversational")
+        mock_translation_service.translate.assert_any_call("很好", style="conversational")
 
 
 def test_process_batch_with_source_lang() -> None:
@@ -259,13 +165,10 @@ def test_process_batch_with_source_lang() -> None:
     mock_translation_service.translate.return_value = mock_translation
 
     sentences = ["Hello", "Good morning", "Hi there"]
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        # All sentences should be detected with high confidence
-        mock_detect.side_effect = [
-            DetectionResult(language=Language("en"), confidence=0.95, is_ambiguous=False),
-            DetectionResult(language=Language("en"), confidence=0.92, is_ambiguous=False),
-            DetectionResult(language=Language("en"), confidence=0.90, is_ambiguous=False),
-        ]
+
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        # Mock source language verification
+        mock_detect.return_value = ["en", "en", "en"]
 
         process_batch(
             sentences,
@@ -276,3 +179,60 @@ def test_process_batch_with_source_lang() -> None:
 
         # All sentences should be translated
         assert mock_translation_service.translate.call_count == 3
+        for sentence in sentences:
+            mock_translation_service.translate.assert_any_call(sentence, style="conversational")
+
+
+def test_process_batch_with_empty_text() -> None:
+    """Test batch processing with empty text."""
+    mock_translation_service = MagicMock()
+
+    # Empty input should be handled gracefully
+    process_batch(
+        ["", "   ", "\n"],
+        target_lang=Language("en"),
+        translation_service=mock_translation_service,
+    )
+
+    # No translation calls should happen
+    mock_translation_service.translate.assert_not_called()
+
+
+def test_process_batch_with_valid_detection() -> None:
+    """Test batch processing with valid language detection."""
+    mock_translation_service = MagicMock()
+
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        # Return English for all detections
+        mock_detect.return_value = ["en", "en", "en"]
+
+        # Process batch with various texts
+        process_batch(
+            ["Text1", "Hello", "Text3"],
+            target_lang=Language("zh"),
+            translation_service=mock_translation_service,
+        )
+
+        # All texts should be processed since they all have valid language detections
+        assert mock_translation_service.translate.call_count == 3
+
+
+def test_process_batch_with_target_language() -> None:
+    """Test batch processing with texts already in target language."""
+    mock_translation_service = MagicMock()
+
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        # Return target language for second sentence
+        mock_detect.return_value = ["en", "zh", "en"]
+
+        # Process batch with target language as Chinese
+        process_batch(
+            ["Hello1", "你好", "Hello2"],
+            target_lang=Language("zh"),
+            translation_service=mock_translation_service,
+        )
+
+        # Second sentence should be skipped as it's already in target language
+        assert mock_translation_service.translate.call_count == 2
+        mock_translation_service.translate.assert_any_call("Hello1", style="conversational")
+        mock_translation_service.translate.assert_any_call("Hello2", style="conversational")

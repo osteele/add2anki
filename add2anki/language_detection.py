@@ -2,9 +2,9 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Dict, Sequence
+from typing import Dict, List, Sequence
 
-import fast_langdetect
+from contextual_langdetect import contextual_detect
 
 from add2anki.exceptions import LanguageDetectionError
 from add2anki.translation import TranslationService
@@ -25,25 +25,19 @@ TranslationCallback = Callable[[str, str, str], None]
 
 
 @dataclass
-class DetectionResult:
-    """Result of language detection including confidence."""
-
-    language: Language
-    confidence: float
-    is_ambiguous: bool = False
-
-
-@dataclass
 class LanguageState:
     """State for language detection in REPL mode."""
 
     detected_language: Language | None = None
     language_history: Dict[Language, int] | None = None
+    primary_languages: List[Language] | None = None
 
     def __post_init__(self) -> None:
         """Initialize language history."""
         if self.language_history is None:
             self.language_history = {}
+        if self.primary_languages is None:
+            self.primary_languages = []
 
     def record_language(self, language: Language) -> None:
         """Record a detected language to build context."""
@@ -59,45 +53,9 @@ class LanguageState:
         if self.language_history:
             self.detected_language = max(self.language_history.items(), key=lambda x: x[1])[0]
 
-
-# Confidence threshold for language detection
-CONFIDENCE_THRESHOLD = 0.70  # Adjust as needed based on empirical testing
-
-
-def detect_language(text: str) -> DetectionResult:
-    """Detect the language of the given text.
-
-    Args:
-        text: The text to detect the language of.
-
-    Returns:
-        DetectionResult with detected language and confidence score.
-
-    Raises:
-        LanguageDetectionError: If language detection fails completely.
-    """
-    try:
-        result = fast_langdetect.detect(text)
-
-        # Process result based on return type
-        if isinstance(result, str):
-            # Simple string result - assume high confidence
-            return DetectionResult(language=Language(result), confidence=1.0, is_ambiguous=False)
-        else:
-            # Dictionary result with language and confidence
-            lang = result.get("lang", "")
-            confidence = float(result.get("score", 0.0))
-
-            if not lang:
-                raise LanguageDetectionError("No language detected")
-
-            # Determine if the result is ambiguous based on confidence
-            is_ambiguous = confidence < CONFIDENCE_THRESHOLD
-
-            return DetectionResult(language=Language(str(lang)), confidence=confidence, is_ambiguous=is_ambiguous)
-
-    except Exception as e:
-        raise LanguageDetectionError(f"Language detection failed: {e}") from e
+            # Update primary languages (anything that appears >10% of the time)
+            threshold = max(1, sum(self.language_history.values()) * 0.1)
+            self.primary_languages = [lang for lang, count in self.language_history.items() if count >= threshold]
 
 
 def process_sentence(
@@ -121,16 +79,26 @@ def process_sentence(
     Raises:
         LanguageDetectionError: If language detection fails or is ambiguous and cannot be resolved.
     """
-    # If source language is explicitly specified, use it for direction
-    if source_lang:
-        detection = detect_language(sentence)
-        detected_lang = detection.language
+    # Skip empty sentences
+    if not sentence.strip():
+        return
 
+    # If source language is explicitly specified, use it
+    if source_lang:
         # Skip if the sentence is already in target language
-        if detected_lang == target_lang:
+        if source_lang == target_lang:
             return
 
-        # Verify the sentence is in the specified source language
+        # Get expected languages list (to verify source_lang)
+        expected_langs = [str(source_lang)]
+        detected_langs = contextual_detect([sentence], languages=expected_langs)
+
+        if not detected_langs or not detected_langs[0]:
+            raise LanguageDetectionError(f"No language detected for: {sentence}")
+
+        detected_lang = Language(detected_langs[0])
+
+        # Verify detected language matches specified source language
         if detected_lang != source_lang:
             raise LanguageDetectionError(
                 f"Sentence appears to be in {detected_lang} instead of specified source language {source_lang}"
@@ -142,32 +110,53 @@ def process_sentence(
             on_translation(sentence, result.hanzi, result.pinyin)
         return
 
-    # No explicit source language - detect and handle ambiguity
-    detection = detect_language(sentence)
-    detected_lang = detection.language
+    # Handle context from state for improved detection
+    expected_langs = None
+    if state and state.primary_languages:
+        expected_langs = [str(lang) for lang in state.primary_languages]
+
+    # Detect language with context hints if available
+    detected_langs = contextual_detect([sentence], languages=expected_langs)
+
+    if not detected_langs or not detected_langs[0]:
+        # If detection failed but we have state context, use that
+        if state and state.detected_language:
+            detected_lang = state.detected_language
+        else:
+            raise LanguageDetectionError(f"Failed to detect language for: {sentence}")
+    else:
+        detected_lang = Language(detected_langs[0])
+
+    # Handle very short text (which may be ambiguous)
+    is_ambiguous = len(sentence) < 6  # Short texts are considered potentially ambiguous
+
+    # If text is potentially ambiguous but we have state context, use it
+    if is_ambiguous and state and state.detected_language and not expected_langs:
+        # Try again with expected languages hint based on state
+        expected_langs = [str(lang) for lang in state.primary_languages] if state.primary_languages else []
+        if state.detected_language:
+            expected_langs.append(str(state.detected_language))
+
+        if expected_langs:
+            better_langs = contextual_detect([sentence], languages=expected_langs)
+            if better_langs and better_langs[0]:
+                detected_lang = Language(better_langs[0])
+
+    # If ambiguous and no context available, warn the user
+    if is_ambiguous and not state:
+        # We'll continue with the detected language, but warn user they might want to use source_lang
+        # This is a softer approach than raising an error
+        print(f"Warning: '{sentence}' is short and language detection may be ambiguous.")
 
     # Skip if the sentence is already in target language
     if detected_lang == target_lang:
         return
 
-    # Handle ambiguous detection
-    if detection.is_ambiguous:
-        # Try to use context from state in REPL mode
-        if state and state.detected_language:
-            detected_lang = state.detected_language
-        else:
-            # No context available - must ask user or fail
-            raise LanguageDetectionError(
-                f"Language detection is ambiguous (confidence: {detection.confidence:.2f}). "
-                f"Detected '{detected_lang}' but confidence is low. "
-                f"Please specify the source language explicitly with --source-lang."
-            )
-
     # Record this detection in state for future context (REPL mode)
-    if state and not detection.is_ambiguous:
+    if state and not is_ambiguous:
         state.record_language(detected_lang)
 
-    # Translate from detected language to target
+    # Translate using the detected language
     result = translation_service.translate(sentence, style="conversational")
     if on_translation:
         on_translation(sentence, result.hanzi, result.pinyin)
@@ -192,82 +181,45 @@ def process_batch(
     Raises:
         LanguageDetectionError: If language detection fails or is ambiguous and cannot be resolved.
     """
-    # When source language is explicitly specified
-    if source_lang:
-        for sentence in sentences:
-            detection = detect_language(sentence)
-            detected_lang = detection.language
-
-            # Skip if the sentence is already in target language
-            if detected_lang == target_lang:
-                continue
-
-            # Verify the sentence is in the specified source language
-            if detected_lang != source_lang:
-                raise LanguageDetectionError(
-                    f"Sentence appears to be in {detected_lang} instead of specified source language {source_lang}"
-                )
-
-            # Translate from source to target
-            result = translation_service.translate(sentence, style="conversational")
-            if on_translation:
-                on_translation(sentence, result.hanzi, result.pinyin)
+    # Filter out empty sentences
+    valid_sentences = [s for s in sentences if s.strip()]
+    if not valid_sentences:
         return
 
-    # No explicit source language - use two-pass approach with context
+    # When source language is explicitly specified, process each sentence individually
+    if source_lang:
+        for sentence in valid_sentences:
+            process_sentence(
+                sentence,
+                target_lang=target_lang,
+                translation_service=translation_service,
+                source_lang=source_lang,
+                on_translation=on_translation,
+            )
+        return
 
-    # First pass: categorize sentences and collect language statistics
-    unambiguous_sentences: list[tuple[str, Language]] = []  # (sentence, language)
-    ambiguous_sentences: list[tuple[str, DetectionResult]] = []  # (sentence, detection_result)
-    target_sentences: list[str] = []  # Sentences already in target language
-    language_counts: Dict[Language, int] = {}  # Count of each detected language
+    # No explicit source language - use contextual_langdetect for batch processing
+    # The package automatically handles context-aware detection
+    detected_languages = contextual_detect(valid_sentences)
 
-    # First pass: categorize all sentences
-    for sentence in sentences:
-        detection = detect_language(sentence)
+    if len(detected_languages) != len(valid_sentences):
+        raise LanguageDetectionError(
+            "Language detection failed: Number of results doesn't match number of input sentences"
+        )
 
-        # Skip sentences already in target language
-        if detection.language == target_lang:
-            target_sentences.append(sentence)
+    # Process each sentence with its detected language
+    for sentence, language in zip(valid_sentences, detected_languages):
+        # Skip sentences where language could not be detected
+        if not language:
             continue
 
-        # Sort into unambiguous and ambiguous categories
-        if detection.is_ambiguous:
-            ambiguous_sentences.append((sentence, detection))
-        else:
-            unambiguous_sentences.append((sentence, detection.language))
+        detected_lang = Language(language)
 
-            # Update language statistics
-            if detection.language in language_counts:
-                language_counts[detection.language] += 1
-            else:
-                language_counts[detection.language] = 1
+        # Skip if the sentence is already in target language
+        if detected_lang == target_lang:
+            continue
 
-    # Process unambiguous sentences first
-    for sentence, _ in unambiguous_sentences:
+        # Translate using the detected language
         result = translation_service.translate(sentence, style="conversational")
         if on_translation:
             on_translation(sentence, result.hanzi, result.pinyin)
-
-    # Process ambiguous sentences using context from unambiguous ones
-    if ambiguous_sentences:
-        # Find the most common detected language as context
-        predominant_language = None
-        if language_counts:
-            predominant_language = max(language_counts.items(), key=lambda x: x[1])[0]
-
-        if not predominant_language:
-            # Cannot determine language context - skip with warning
-            sentences_preview = [s[:30] + "..." for s, _ in ambiguous_sentences[:3]]
-            raise LanguageDetectionError(
-                f"Cannot determine language for {len(ambiguous_sentences)} ambiguous sentences. "
-                f"No unambiguous sentences found for context. "
-                f"Examples: {', '.join(sentences_preview)}"
-            )
-
-        # Use the predominant language as context for ambiguous sentences
-        for sentence, detection in ambiguous_sentences:
-            # Override the ambiguous detection with predominant language
-            result = translation_service.translate(sentence, style="conversational")
-            if on_translation:
-                on_translation(sentence, result.hanzi, result.pinyin)

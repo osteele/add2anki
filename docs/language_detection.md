@@ -1,8 +1,6 @@
 # Language Detection
 
-add2anki uses [fast-langdetect](https://pypi.org/project/fast-langdetect/) to
-automatically detect the language of input text. This enables the tool to handle
-both source->target and target->source translation flows with any supported language pair.
+add2anki uses [contextual-langdetect](https://github.com/osteele/contextual-langdetect) for intelligent, context-aware language detection. This enables the tool to handle both source->target and target->source translation flows with any supported language pair.
 
 ## Overview
 
@@ -19,6 +17,35 @@ When processing input text (from command line, REPL, or files), add2anki:
    - Uses the sentence as the source text
    - Translates it to the target language
 
+## Context-Aware Language Detection
+
+add2anki uses contextual-langdetect for improved language detection reliability, especially for short or ambiguous sentences:
+
+### The Problem with Per-Sentence Detection
+
+Traditional language detection analyzes each sentence in isolation, which has limitations:
+- Short phrases may have insufficient linguistic features for reliable detection
+- Some phrases look similar across related languages (e.g., Chinese, Japanese)
+- No benefit from the context of surrounding text
+
+### Contextual Approach
+
+add2anki addresses these limitations using the contextual-langdetect package:
+
+1. **Document-Level Context Awareness:**
+   - Instead of detecting each sentence independently, the entire document is analyzed together
+   - The context of surrounding sentences is used to improve detection accuracy
+   - Patterns in the document help resolve ambiguous cases
+
+2. **Handling Short or Ambiguous Sentences:**
+   - Very short sentences (less than 6 characters) are more prone to misidentification
+   - For these cases, the detection system considers:
+     - The primary languages used in the document
+     - Previous language detections in REPL mode
+     - Expected languages when specified
+
+This contextual awareness mimics how humans use surrounding text to understand language in context.
+
 ## Language Detection Process
 
 ### Single Sentence Mode
@@ -31,27 +58,25 @@ When processing a single sentence (command line or REPL):
    - Uses the specified languages for translation direction
 
 2. Otherwise:
-   - Detects the language using fast-langdetect
+   - Detects the language using contextual detection
    - Uses the detected language to determine translation direction
    - If detection is ambiguous, uses context from previous sentences (in REPL mode)
    - If detection fails or remains ambiguous, prompts the user for clarification
-   - In REPL mode, stores the detected language for subsequent sentences
+   - In REPL mode, builds a language context model for subsequent sentences
 
 ### Batch Mode
 
 When processing files (text, CSV, TSV, or SRT):
 
-1. First Pass:
-   - Detects language for each sentence
-   - Identifies unambiguous cases where language detection has high confidence
+1. The contextual-langdetect package processes all sentences together:
+   - Analyzes document-level language patterns
+   - Considers context when detecting each sentence
+   - Improves accuracy for ambiguous sentences
 
-2. Second Pass:
-   - For ambiguous cases (where language detection has low confidence):
-     - Uses the predominant language from unambiguous sentences as context
-     - Makes an informed decision based on the surrounding context
-     - If no unambiguous sentences exist:
-       - In REPL mode: asks the user for clarification
-       - In batch mode: skips with a warning
+2. After detection:
+   - Sentences already in the target language are skipped
+   - Other sentences are translated to the target language
+   - If detection fails for a sentence, it is skipped with a warning
 
 ## Handling Ambiguity
 
@@ -59,121 +84,62 @@ add2anki uses several strategies to handle ambiguous language detection:
 
 1. **Context-based disambiguation**:
    - In REPL mode: Uses previously detected languages as context
-   - In batch mode: Uses unambiguous sentences (from both before and after) as context
+   - In batch mode: Uses full document context via contextual-langdetect
+   - For very short sentences, applies additional scrutiny
 
 2. **User intervention**:
    - In interactive mode: Prompts the user when ambiguity cannot be resolved
    - Allows explicit language specification via command-line options
 
-3. **Skip with warning**:
-   - In batch mode: When ambiguity cannot be resolved and no user is present to intervene,
-     the sentence is skipped with a warning message
-
-## Language Detection Flow
-
-```
-                           ┌───────────────────┐
-                           │  Input Sentence   │
-                           └─────────┬─────────┘
-                                     │
-                                     ▼
-                           ┌───────────────────┐
-                           │ Language Detection│
-                           └─────────┬─────────┘
-                                     │
-                                     ▼
-                    ┌───────────────────────────────┐
-                    │ Is language detection certain?│
-                    └─┬─────────────────────────────┘
-                      │
-          ┌───────────┴───────────┐
-          │                       │
-          ▼                       ▼
-┌──────────────────┐    ┌──────────────────────┐
-│     Certain      │    │      Ambiguous       │
-└────────┬─────────┘    └──────────┬───────────┘
-         │                         │
-         │                         ▼
-         │             ┌───────────────────────┐
-         │             │ Try context-based     │
-         │             │ disambiguation        │
-         │             └───────────┬───────────┘
-         │                         │
-         │                         ▼
-         │             ┌───────────────────────┐
-         │             │ Resolved with context?│
-         │             └┬─────────────────────┬┘
-         │              │                     │
-         │              │ Yes                 │ No
-         │              ▼                     ▼
-         │     ┌────────────────┐    ┌────────────────┐
-         │     │ Use resolved   │    │ Interactive    │◄─── Yes ┌─────────────┐
-         │     │ language       │    │ mode?          ├─────────►Ask user     │
-         │     └───────┬────────┘    └──────┬─────────┘         └──────┬──────┘
-         │             │                    │ No                       │
-         │             │                    ▼                          │
-         │             │            ┌────────────────┐                 │
-         │             │            │ Skip with      │                 │
-         │             │            │ warning        │                 │
-         │             │            └────────────────┘                 │
-         ▼             ▼                                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          Process sentence:                              │
-│                  - Determine source/target direction                    │
-│                  - Translate as needed                                  │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+3. **Expected language hints**:
+   - When processing with known language context, provides hints to the detector
+   - Especially useful when working with bilingual content
 
 ## Examples
 
-### Source to Target Translation
+### Basic Usage
 
 ```bash
-# English to Spanish
-add2anki "Hello, how are you?"
-
-# English to Japanese with explicit target
-add2anki --target-lang ja "Hello, how are you?"
+# This will identify the language automatically
+add2anki tests/data/test-zh.txt
 ```
 
-### Target to Source Translation
+### Mixed Language Content
 
 ```bash
-# Spanish to English
-add2anki "¿Hola, cómo estás?"
-
-# Japanese to English
-add2anki "こんにちは、お元気ですか？"
+# Can automatically handle alternating languages
+add2anki --file tests/data/test-mixed.txt
+# (Contains both Chinese and English sentences)
 ```
 
-### Batch Processing
+### Ambiguous Text Handling
+
+Short phrases that might be ambiguous:
 
 ```bash
-# Process a file with mixed languages
-add2anki --file mixed.txt
-# mixed.txt contents:
-# Hello, how are you?
-# ¿Hola, cómo estás?
-# こんにちは、お元気ですか？
+# Context-aware detection helps resolve ambiguity
+add2anki "天气很冷。"  # Short Chinese phrase
 ```
 
-### Explicit Source/Target Languages
+### Explicit Language Specification
+
+When you want to override automatic detection:
 
 ```bash
-# Force Spanish as source language
-add2anki --source-lang es "¿Hola, cómo estás?"
-
-# Force Japanese as target language
-add2anki --target-lang ja "Hello, how are you?"
-
-# Explicit source and target languages
-add2anki --source-lang en --target-lang fr "Hello, how are you?"
+# Force source language to be Chinese
+add2anki --source-lang zh --target-lang en tests/data/test-zh.txt
 ```
+
+## Benefits of Contextual Detection
+
+- **Improved accuracy** for short phrases and sentences
+- **Better handling** of mixed-language documents
+- **Reduced need** for explicit language specification
+- **More consistent results** across various content types
+- **Graceful degradation** for challenging cases
 
 ## Limitations
 
-- Relies on fast-langdetect for language detection
-- Language detection accuracy depends on text length and uniqueness
-- May require user input for ambiguous cases in interactive mode
-- Skips ambiguous sentences in batch mode if no clear pattern exists
-- Very short sentences (1-3 words) may have lower detection accuracy
+- Language detection is still probabilistic and may not be perfect
+- Very short sentences (1-2 words) remain challenging
+- Closely related languages can sometimes be difficult to distinguish
