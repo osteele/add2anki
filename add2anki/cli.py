@@ -7,6 +7,7 @@ import pathlib
 from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple, TypedDict, cast
 
 import click
+from contextual_langdetect import contextual_detect
 from rich.console import Console
 from rich.prompt import IntPrompt
 from rich.table import Table
@@ -24,7 +25,7 @@ from add2anki.config import (
     save_config,
 )
 from add2anki.exceptions import LanguageDetectionError, add2ankiError
-from add2anki.language_detection import Language, LanguageState, detect_language
+from add2anki.language_detection import Language, LanguageState
 from add2anki.language_detection import process_batch as process_batch_detect
 from add2anki.language_detection import process_sentence as process_sentence_detect
 from add2anki.srt import filter_srt_entries, is_mandarin, parse_srt_file
@@ -843,11 +844,12 @@ def process_sentence(
         # Determine the source language (the language of 'sentence')
         detected = None
         try:
-            detection = detect_language(sentence)
-            detected = detection.language
-            if verbose:
-                console.print(f"\n[blue]Detected language: {detected} (confidence: {detection.confidence:.2f})[/blue]")
-        except LanguageDetectionError:
+            languages = contextual_detect([sentence])
+            if languages and languages[0]:
+                detected = Language(languages[0])
+                if verbose:
+                    console.print(f"\n[blue]Detected language: {detected}[/blue]")
+        except Exception:
             if verbose:
                 console.print("\n[yellow]Could not detect language of the original text[/yellow]")
 
@@ -1055,14 +1057,13 @@ def process_batch(
 
         # Determine the source language (the language of 'sentence')
         detected = None
-        try:
-            detection = detect_language(sentence)
-            detected = detection.language
-            if verbose:
-                console.print(f"\n[blue]Detected language: {detected} (confidence: {detection.confidence:.2f})[/blue]")
-        except LanguageDetectionError:
-            if verbose:
-                console.print("\n[yellow]Could not detect language of the original text[/yellow]")
+        # Use contextual detection
+        detected_langs = contextual_detect([sentence])
+        detected = detected_langs[0] if detected_langs and detected_langs[0] else None
+        if verbose and detected:
+            console.print(f"\n[blue]Detected language: {detected}[/blue]")
+        elif verbose:
+            console.print("\n[yellow]Could not detect language of the original text[/yellow]")
 
         if verbose:
             console.print(f"Original: {sentence}")
@@ -1123,27 +1124,27 @@ def process_batch(
             language_stats: Dict[str, int] = {}
             ambiguous_count = 0
 
-            for idx, sentence in enumerate(sentences, 1):
-                try:
-                    detection = detect_language(sentence)
-                    lang = detection.language
-                    confidence = detection.confidence
+            # Use batch detection for better context
+            detected_langs = contextual_detect(sentences)
 
-                    # Update language statistics
-                    if lang in language_stats:
-                        language_stats[lang] += 1
-                    else:
-                        language_stats[lang] = 1
+            for idx, (sentence, lang) in enumerate(zip(sentences, detected_langs), 1):
+                if not lang:
+                    console.print(f"[yellow]Sentence {idx}: Could not detect language[/yellow]")
+                    continue
 
-                    # Count ambiguous detections
-                    if detection.is_ambiguous:
-                        ambiguous_count += 1
-                        console.print(
-                            f"[yellow]Sentence {idx}: Ambiguous detection - "
-                            f"detected as {lang} with low confidence ({confidence:.2f})[/yellow]"
-                        )
-                except LanguageDetectionError as e:
-                    console.print(f"[red]Sentence {idx}: Detection failed - {e}[/red]")
+                # Update language statistics
+                if lang in language_stats:
+                    language_stats[lang] += 1
+                else:
+                    language_stats[lang] = 1
+
+                # Count potentially ambiguous detections based on length
+                if len(sentence) < 6:
+                    ambiguous_count += 1
+                    console.print(
+                        f"[yellow]Sentence {idx}: Potentially ambiguous detection - "
+                        f"short text detected as {lang}[/yellow]"
+                    )
 
             # Report statistics
             console.print("\n[bold blue]Language statistics:[/bold blue]")

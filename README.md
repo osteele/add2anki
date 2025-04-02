@@ -1,7 +1,7 @@
 # add2anki — add language study cards to Anki
 A CLI tool to add language learning cards to Anki, with automatic translation and audio generation.
 
-Currently supports English to Mandarin Chinese translation with audio generation using three providers:
+Currently supports English to Mandarin Chinese translation with audio generation using two providers:
 - Google Translate TTS (default, no authentication required)
 - ElevenLabs (requires API key)
 
@@ -12,11 +12,12 @@ Currently supports English to Mandarin Chinese translation with audio generation
   - `conversational` (default): Natural, everyday language
   - `formal`: More polite expressions appropriate for business or formal situations
   - `written`: Literary style suitable for written texts
-- Generate high-quality audio for Chinese text using one of three providers:
+- Generate high-quality audio for Chinese text using one of two providers:
   - Google Translate TTS (default, no authentication required)
   - ElevenLabs (requires API key)
 - Add cards to Anki with translation and audio
 - Add custom tags to notes or use the default "add2anki" tag
+- Context-aware language detection that automatically identifies languages
 - Automatic detection of suitable note types and field mappings
 - Support for custom note types with field name synonyms (Hanzi/Chinese, Pinyin/Pronunciation, English/Translation)
 - Configuration saved between sessions

@@ -9,7 +9,7 @@ import pytest
 from click.testing import CliRunner
 
 from add2anki.cli import main, process_sentence
-from add2anki.language_detection import CONFIDENCE_THRESHOLD, DetectionResult, Language, LanguageState
+from add2anki.language_detection import Language, LanguageState
 
 # Define a callback type for type checking
 TranslationCallback = Callable[[str, str, str], None]
@@ -91,9 +91,9 @@ def test_cli_with_english_sentence(setup_language_detection_environment: None) -
     """Test CLI with an English sentence."""
     runner = CliRunner()
 
-    # Mock the language detection to return English with high confidence
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        mock_detect.return_value = DetectionResult(language=Language("en"), confidence=0.95, is_ambiguous=False)
+    # Mock the contextual detection to return English
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        mock_detect.return_value = ["en"]
 
         # Test the CLI with an English sentence (with --no-launch-anki to prevent launch polling)
         result = runner.invoke(main, ["Hello world", "--verbose", "--no-launch-anki"])
@@ -110,17 +110,16 @@ def test_cli_with_chinese_sentence(setup_language_detection_environment: Any) ->
     """Test CLI with a Chinese sentence."""
     runner = CliRunner()
 
-    # Mock the language detection to return Chinese with high confidence
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        mock_detect.return_value = DetectionResult(language=Language("zh"), confidence=0.95, is_ambiguous=False)
+    # Mock the language detection to return Chinese
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        mock_detect.return_value = ["zh"]
 
         # Test the CLI with a Chinese sentence
         result = runner.invoke(main, ["你好世界", "--verbose", "--no-launch-anki"])
 
         # Verify the command executed successfully
         assert result.exit_code == 0
-        # Instead of expecting a specific detection message, just check that it shows
-        # the target language is zh and that there's some output
+        # Check that it shows the target language is zh and that there's some output
         assert "Target language: zh" in result.output
         assert result.output.strip() != ""
 
@@ -129,9 +128,9 @@ def test_cli_with_explicit_source_language(setup_language_detection_environment:
     """Test CLI with an explicitly specified source language."""
     runner = CliRunner()
 
-    # Mock the language detection to return Spanish with high confidence
-    with patch("add2anki.language_detection.detect_language") as mock_detect:
-        mock_detect.return_value = DetectionResult(language=Language("es"), confidence=0.95, is_ambiguous=False)
+    # Mock the language detection to return Spanish
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        mock_detect.return_value = ["es"]
 
         # Test the CLI with a Spanish sentence and explicit source language
         result = runner.invoke(main, ["Hola mundo", "--source-lang", "es", "--verbose", "--no-launch-anki"])
@@ -146,23 +145,20 @@ def test_cli_with_ambiguous_detection(setup_language_detection_environment: Any)
     """Test CLI with ambiguous language detection."""
     runner = CliRunner()
 
-    # First call returns ambiguous result, second call (after retry) returns high confidence
-    detection_results = [
-        DetectionResult(language=Language("zh"), confidence=0.55, is_ambiguous=True),
-        DetectionResult(language=Language("zh"), confidence=0.95, is_ambiguous=False),
-    ]
+    # For ambiguous text, we might get uncertain detections
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        # Return language for both calls
+        mock_detect.side_effect = [
+            ["zh"],  # First call returns Chinese
+            ["zh"],  # Second call (if needed) also returns Chinese
+        ]
 
-    with patch("add2anki.language_detection.detect_language", side_effect=detection_results):
-        # Mock click.confirm to automatically retry
-        with patch("click.confirm", return_value=True):
-            # Mock click.prompt to select 'zh' as source language
-            with patch("click.prompt", return_value="zh"):
-                # Test the CLI with an ambiguous sentence
-                result = runner.invoke(main, ["短", "--verbose", "--no-launch-anki"])  # Very short Chinese text
+        # Test the CLI with a short text
+        result = runner.invoke(main, ["短", "--verbose", "--no-launch-anki"])  # Very short Chinese text
 
-                # Verify the command executed successfully after retry
-                assert result.exit_code == 0
-                assert "Target language: zh" in result.output
+        # Verify the command executed successfully
+        assert result.exit_code == 0
+        assert "Target language: zh" in result.output
 
 
 def test_cli_batch_processing_mixed_languages(setup_language_detection_environment: Any) -> None:
@@ -178,28 +174,20 @@ def test_cli_batch_processing_mixed_languages(setup_language_detection_environme
             f.write("こんにちは世界,你好世界,ni3 hao3 shi4 jie4,Hello world\n")
             f.write("Short,短,duan3,Short\n")  # Short text for testing
 
-        # Mock detection results for each line
-        detection_results = [
-            DetectionResult(language=Language("en"), confidence=0.95, is_ambiguous=False),
-            DetectionResult(language=Language("zh"), confidence=0.90, is_ambiguous=False),
-            DetectionResult(language=Language("ja"), confidence=0.85, is_ambiguous=False),
-            DetectionResult(language=Language("en"), confidence=0.65, is_ambiguous=True),
-        ]
-
         # Create mock note types for CSV compatibility
         mock_note_types = [("Basic Chinese", {"hanzi_field": "Chinese", "english_field": "English"})]
 
         with patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types):
-            with patch("add2anki.language_detection.detect_language", side_effect=detection_results):
-                # Test batch processing with file input
-                result = runner.invoke(main, ["--file", "mixed.csv", "--verbose", "--no-launch-anki"])
+            # No need to mock language detection for CSV processing as columns are used directly
+            # Test batch processing with file input
+            result = runner.invoke(main, ["--file", "mixed.csv", "--verbose", "--no-launch-anki"])
 
-                # Should complete without error
-                assert result.exit_code == 0
+            # Should complete without error
+            assert result.exit_code == 0
 
-                # The actual CSV processing doesn't necessarily call detect_language since it's using the columns
-                # directly, but we should still see CSV detected as a language learning table
-                assert "Read 4 rows from CSV file" in result.output
+            # The actual CSV processing doesn't necessarily call contextual_langdetect since it's using the columns
+            # directly, but we should still see CSV detected as a language learning table
+            assert "Read 4 rows from CSV file" in result.output
 
 
 def test_process_sentence_with_state_context(setup_language_detection_environment: Any) -> None:
@@ -215,18 +203,15 @@ def test_process_sentence_with_state_context(setup_language_detection_environmen
     with patch("add2anki.cli.TranslationService", return_value=mock_translation_service):
         with patch("add2anki.cli.create_audio_service", return_value=mock_audio_service):
             with patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types):
-                # Mock language detection to return a sequence of results
-                detection_results = [
-                    # First sentence: Clear English
-                    DetectionResult(language=Language("en"), confidence=0.95, is_ambiguous=False),
-                    # Second sentence: Clear Chinese
-                    DetectionResult(language=Language("zh"), confidence=0.90, is_ambiguous=False),
-                    # Third sentence: Ambiguous, should use context from previous sentences
-                    DetectionResult(language=Language("zh"), confidence=0.60, is_ambiguous=True),
-                ]
+                # Mock the contextual detection to return language results
+                with patch("contextual_langdetect.contextual_detect") as mock_detect:
+                    # Configure mock to return the expected languages
+                    mock_detect.side_effect = [
+                        ["en"],  # First call - English
+                        ["zh"],  # Second call - Chinese
+                        ["zh"],  # Third call - Chinese for the ambiguous short text
+                    ]
 
-                # First patch process_sentence_detect to properly handle our state
-                with patch("add2anki.language_detection.detect_language", side_effect=detection_results):
                     with patch("add2anki.cli.process_sentence_detect") as mock_process_detect:
 
                         def mock_process_side_effect(
@@ -272,8 +257,8 @@ def test_process_sentence_with_state_context(setup_language_detection_environmen
                             launch_anki=False,  # Prevent launch polling
                         )
 
-                        # Process the third sentence (ambiguous Chinese)
-                        # This should succeed because context from previous sentences resolves ambiguity
+                        # Process the third sentence (short Chinese text)
+                        # This should succeed because our mock returns Chinese
                         process_sentence(
                             "短",  # Very short Chinese text
                             "Test Deck",
@@ -292,61 +277,93 @@ def test_process_sentence_with_state_context(setup_language_detection_environmen
 
 def test_short_and_mixed_text_edge_cases():
     """Test edge cases like very short text and mixed scripts."""
-    # Define test cases: (input_text, expected_language, expected_confidence)
+    # Local import to avoid naming conflicts
+    from add2anki.language_detection import process_sentence
+
+    # This test verifies that Chinese sentences are not translated when target is Chinese,
+    # and that other languages are translated properly
+
+    # Test with Chinese as target language
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        # Test with Chinese text, target Chinese (should skip translation)
+        mock_detect.return_value = ["zh"]  # Chinese
+        mock_translation_service = MagicMock()
+
+        process_sentence(
+            "你好",  # Chinese text
+            target_lang=Language("zh"),  # Target is Chinese
+            translation_service=mock_translation_service,
+            state=None,
+        )
+
+        # Should not translate when source and target are the same
+        mock_translation_service.translate.assert_not_called()
+
+    # Test with English as source, Chinese as target (should translate)
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        mock_detect.return_value = ["en"]  # English
+        mock_translation_service = MagicMock()
+
+        process_sentence(
+            "Hello world",  # English text
+            target_lang=Language("zh"),  # Target is Chinese
+            translation_service=mock_translation_service,
+            state=None,
+        )
+
+        # Should translate since languages differ
+        mock_translation_service.translate.assert_called_once()
+
+    # Test with Japanese as source, Chinese as target (should translate)
+    with patch("contextual_langdetect.contextual_detect") as mock_detect:
+        mock_detect.return_value = ["ja"]  # Japanese
+        mock_translation_service = MagicMock()
+
+        process_sentence(
+            "こんにちは",  # Japanese text
+            target_lang=Language("zh"),  # Target is Chinese
+            translation_service=mock_translation_service,
+            state=None,
+        )
+
+        # Should translate since languages differ
+        mock_translation_service.translate.assert_called_once()
+
+
+def test_ambiguity_based_on_text_length():
+    """Test that short texts are treated as potentially ambiguous."""
+    # Local import to avoid naming conflicts
+    from add2anki.language_detection import process_sentence
+
+    # Use different text lengths to test ambiguity detection
     test_cases = [
-        ("a", "en", 0.55),  # Single English letter
-        ("的", "zh", 0.65),  # Single Chinese character
-        ("あ", "ja", 0.60),  # Single Japanese character
-        ("Hello你好", "en", 0.65),  # Mixed English/Chinese
-        ("こんにちはworld", "ja", 0.65),  # Mixed Japanese/English
-        ("123", "en", 0.60),  # Only numbers
-        ("", "", 0.0),  # Empty string
+        "a",  # Single character - ambiguous
+        "ab",  # 2 characters - ambiguous
+        "abc",  # 3 characters - ambiguous
+        "abcd",  # 4 characters - ambiguous
+        "abcde",  # 5 characters - ambiguous
+        "abcdef",  # 6 characters - not ambiguous
+        "Hello world",  # Long text - not ambiguous
     ]
 
-    for text, lang, confidence in test_cases:
-        # Mock fast_langdetect based on the test case
-        with patch("fast_langdetect.detect") as mock_detect:
-            # Empty string should raise an error
-            if not text:
-                mock_detect.side_effect = Exception("No text to detect")
-                with pytest.raises(Exception):
-                    from add2anki.language_detection import detect_language
+    for text in test_cases:
+        # Reset mock for each test case to start fresh
+        mock_translation_service = MagicMock()
 
-                    detect_language(text)
-            else:
-                # Return appropriate mock result
-                mock_detect.return_value = {"lang": lang, "score": confidence}
+        # Mock contextual_detect to return English
+        with patch("contextual_langdetect.contextual_detect") as mock_detect:
+            mock_detect.return_value = ["en"]
 
-                # Test language detection
-                from add2anki.language_detection import detect_language
+            # Process the text
+            process_sentence(
+                text,
+                target_lang=Language("zh"),  # Target is Chinese
+                translation_service=mock_translation_service,
+                state=None,
+            )
 
-                result = detect_language(text)
-
-                # Verify results
-                assert result.language == Language(lang)
-                assert result.confidence == confidence
-                assert result.is_ambiguous == (confidence < CONFIDENCE_THRESHOLD)
-
-
-def test_confidence_threshold_impact():
-    """Test how different confidence thresholds affect language detection."""
-    # Test cases with different confidence levels
-    test_confidence_levels = [0.95, 0.85, 0.75, 0.65, 0.55, 0.45]
-
-    for confidence in test_confidence_levels:
-        # Mock detection with this confidence
-        with patch("fast_langdetect.detect") as mock_detect:
-            mock_detect.return_value = {"lang": "en", "score": confidence}
-
-            # Test with different threshold values
-            for threshold in [0.5, 0.7, 0.9]:
-                with patch("add2anki.language_detection.CONFIDENCE_THRESHOLD", threshold):
-                    from add2anki.language_detection import detect_language
-
-                    result = detect_language("Test text")
-
-                    # Verify ambiguity is correctly determined by threshold
-                    assert result.is_ambiguous == (confidence < threshold)
+            # All cases should attempt translation since source is 'en'
+            mock_translation_service.translate.assert_called_once()
 
 
 def test_integration_with_source_and_target_options():

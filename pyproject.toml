@@ -17,6 +17,7 @@ dependencies = [
     "elevenlabs>=0.2.26",
     "requests>=2.31.0",
     "fast-langdetect>=0.3.1",
+    "contextual-langdetect==0.1.1",
 ]
 
 [project.scripts]
@@ -40,4 +41,4 @@ indent-style = "space"
 [tool.pyright]
 python_version = "3.11"
 typeCheckingMode = "strict"
-stubPath = "./add2anki/stubs"
+stubPath = "stubs"

@@ -11,7 +11,6 @@ from add2anki.cli import (
     main,
     process_sentence,
 )
-from add2anki.language_detection import DetectionResult, Language
 
 
 def test_check_environment_missing_vars() -> None:
@@ -81,11 +80,9 @@ def test_process_sentence() -> None:
                             )
                         ],
                     ):
-                        with patch("add2anki.language_detection.detect_language") as mock_detect:
-                            # Mock language detection to return high confidence
-                            mock_detect.return_value = DetectionResult(
-                                language=Language("en"), confidence=0.95, is_ambiguous=False
-                            )
+                        with patch("contextual_langdetect.contextual_detect") as mock_detect:
+                            # Mock language detection to return English
+                            mock_detect.return_value = ["en"]
                             # Test 1: Call the function with default tags (None)
                             process_sentence(
                                 "Hello",
@@ -225,11 +222,9 @@ def test_main_with_sentences() -> None:
                 with patch("add2anki.cli.find_suitable_note_types", return_value=["Chinese Basic"]):
                     # Mock process_sentence
                     with patch("add2anki.cli.process_sentence") as mock_process_sentence:
-                        with patch("add2anki.language_detection.detect_language") as mock_detect:
-                            # Mock language detection to return high confidence
-                            mock_detect.return_value = DetectionResult(
-                                language=Language("en"), confidence=0.95, is_ambiguous=False
-                            )
+                        with patch("contextual_langdetect.contextual_detect") as mock_detect:
+                            # Mock language detection to return English
+                            mock_detect.return_value = ["en"]
                             result = runner.invoke(main, ["Hello", "world", "--no-launch-anki"])
                             assert result.exit_code == 0
 
@@ -392,11 +387,9 @@ def test_main_with_tags() -> None:
                     mock_config.deck_name = "Smalltalk"
                     mock_config.note_type = "Chinese Basic"
                     with patch("add2anki.cli.load_config", return_value=mock_config):
-                        with patch("add2anki.language_detection.detect_language") as mock_detect:
-                            # Mock language detection to return high confidence English
-                            mock_detect.return_value = DetectionResult(
-                                language=Language("en"), confidence=0.95, is_ambiguous=False
-                            )
+                        with patch("contextual_langdetect.contextual_detect") as mock_detect:
+                            # Mock language detection to return English
+                            mock_detect.return_value = ["en"]
 
                             # Run the CLI command with specific tags
                             result = runner.invoke(main, ["--tags", "test,tag", "Hello", "--no-launch-anki"])

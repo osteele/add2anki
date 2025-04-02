@@ -8,6 +8,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "contextual-langdetect" },
     { name = "elevenlabs" },
     { name = "fast-langdetect" },
     { name = "openai" },
@@ -27,6 +28,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.7" },
+    { name = "contextual-langdetect", specifier = "==0.1.1" },
     { name = "elevenlabs", specifier = ">=0.2.26" },
     { name = "fast-langdetect", specifier = ">=0.3.1" },
     { name = "openai", specifier = ">=1.68.2" },
@@ -166,6 +168,19 @@ wheels = [
 ]
 
 [[package]]
+name = "contextual-langdetect"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fast-langdetect" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/99/d4/75dc7926a7576fd537e7a60616f812c6dba81a26e48263139bc6f2daa384/contextual_langdetect-0.1.1.tar.gz", hash = "sha256:366ea60898693b1031cafba0f304af6f634178328bd57538e0ed9f33ff765fc8", size = 44017 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/1d/dbb7684f75de84aa4e6f38a72e113448187af1a040e87389b3c289366321/contextual_langdetect-0.1.1-py3-none-any.whl", hash = "sha256:1e23ab5815058d58d57b8cc1bb823274329cab4f1f00d03bfbab91b13fc2dab7", size = 7758 },
+]
+
+[[package]]
 name = "distlib"
 version = "0.3.9"
 source = { registry = "https://pypi.org/simple" }
@@ -202,16 +217,16 @@ wheels = [
 
 [[package]]
 name = "fast-langdetect"
-version = "0.3.1"
+version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fasttext-predict" },
     { name = "requests" },
     { name = "robust-downloader" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/59/46/4c134c83e81e9e2664c3fc4acfc1865acc69d4c48bc56234e8b8e39104c8/fast_langdetect-0.3.1.tar.gz", hash = "sha256:edbbd2bcf4b0225cd077d87b2ed32447f86d25fa68c191f010c6ee4503555da6", size = 792031 }
+sdist = { url = "https://files.pythonhosted.org/packages/73/e4/e69fc0a833fb91f6392f46c688f89e484855a8905e9999f3e0d6e8e75759/fast_langdetect-0.3.2.tar.gz", hash = "sha256:21b1f98f738545e9d8f39a080e5276861751af178f6548c896419d1ae20a89ac", size = 792453 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/4c/8acc68c1ec2833a932b2e4db1b8a40f0e236dbe88fa2866567328445582e/fast_langdetect-0.3.1-py3-none-any.whl", hash = "sha256:957fd9e8f1e169ef03375b669d5c0b3c3af4b7aec056c7b69c577840efe58860", size = 787486 },
+    { url = "https://files.pythonhosted.org/packages/30/71/0e6da751ef4a9afae2903f76fb8e43c612e3d288a7b01a74ccc20e81b68f/fast_langdetect-0.3.2-py3-none-any.whl", hash = "sha256:40843fcaf0406e9d3892d9f2e0d05dce8b72794b4c14613804bc1d9707951ba0", size = 788098 },
 ]
 
 [[package]]
