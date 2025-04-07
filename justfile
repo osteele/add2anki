@@ -1,12 +1,16 @@
 # Justfile for add2anki project
 
+# Default recipe to run when just is called without arguments
+default:
+    @just --list
+
 # Install dependencies
 setup:
     uv sync --frozen
 
-# Default recipe to run when just is called without arguments
-default:
-    @just --list
+# Clean up build artifacts
+clean:
+    rm -rf dist
 
 # Format code with ruff
 format:
@@ -17,6 +21,11 @@ format:
 fix:
     uv run --dev ruff format .
     uv run --dev ruff check --fix --unsafe-fixes .
+
+# Publish to PyPI
+publish: clean
+    uv build
+    uv publish
 
 # Verify code quality without modifying files
 lint:
