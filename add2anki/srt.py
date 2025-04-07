@@ -2,9 +2,10 @@
 
 import pathlib
 import re
-from typing import Iterator, NamedTuple
+from collections.abc import Iterator
+from typing import NamedTuple
 
-from add2anki.exceptions import add2ankiError
+from add2anki.exceptions import Add2ankiError
 
 
 class SrtEntry(NamedTuple):
@@ -17,7 +18,7 @@ class SrtEntry(NamedTuple):
     text: str
 
 
-class SrtParsingError(add2ankiError):
+class SrtParsingError(Add2ankiError):
     """Exception raised when there is an error parsing an SRT file."""
 
     pass
@@ -51,17 +52,12 @@ def parse_srt_file(file_path: str | pathlib.Path) -> Iterator[SrtEntry]:
         FileNotFoundError: If the file does not exist
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except UnicodeDecodeError:
         # Try with another common encoding
-        try:
-            with open(file_path, "r", encoding="latin-1") as f:
-                content = f.read()
-        except Exception as e:
-            raise SrtParsingError(f"Failed to read SRT file: {e}")
-    except Exception as e:
-        raise SrtParsingError(f"Failed to read SRT file: {e}")
+        with open(file_path, encoding="latin-1") as f:
+            content = f.read()
 
     # Split content into subtitle blocks (separated by double newlines)
     subtitle_blocks = re.split(r"\n\s*\n", content.strip())
@@ -74,28 +70,23 @@ def parse_srt_file(file_path: str | pathlib.Path) -> Iterator[SrtEntry]:
         if len(lines) < 3:
             continue  # Skip invalid blocks
 
+        # First line is the index
         try:
-            # First line is the index
-            try:
-                index = int(lines[0])
-            except ValueError:
-                continue  # Skip if index is not a number
+            index = int(lines[0])
+        except ValueError:
+            continue  # Skip if index is not a number
 
-            # Second line is the timestamp
-            timestamp_match = re.match(r"(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})", lines[1])
-            if not timestamp_match:
-                continue  # Skip if timestamp format is invalid
+        # Second line is the timestamp
+        timestamp_match = re.match(r"(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})", lines[1])
+        if not timestamp_match:
+            continue  # Skip if timestamp format is invalid
 
-            start_time, end_time = timestamp_match.groups()
+        start_time, end_time = timestamp_match.groups()
 
-            # Remaining lines are the subtitle text
-            text = " ".join(lines[2:]).strip()
+        # Remaining lines are the subtitle text
+        text = " ".join(lines[2:]).strip()
 
-            yield SrtEntry(index, start_time, end_time, text)
-
-        except Exception:
-            # Skip problematic entries but continue parsing
-            continue
+        yield SrtEntry(index, start_time, end_time, text)
 
 
 def filter_srt_entries(entries: Iterator[SrtEntry]) -> Iterator[SrtEntry]:

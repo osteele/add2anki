@@ -25,9 +25,8 @@ def test_translation_result_model() -> None:
 
 def test_translation_service_init_no_api_key() -> None:
     """Test that TranslationService raises an error when no API key is provided."""
-    with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ConfigurationError):
-            TranslationService()
+    with patch.dict(os.environ, {}, clear=True), pytest.raises(ConfigurationError):
+        TranslationService()
 
 
 def test_translation_service_init_with_api_key() -> None:

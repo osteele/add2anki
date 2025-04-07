@@ -1,7 +1,7 @@
 """Client for interacting with the Anki Connect API."""
 
 import json
-from typing import Any, Optional, Tuple, cast
+from typing import Any, cast
 
 import requests
 from rich.console import Console
@@ -42,18 +42,18 @@ class AnkiClient:
             response.raise_for_status()
             result = response.json()
 
-            if "error" in result and result["error"]:
+            if result.get("error"):
                 raise AnkiConnectError(f"AnkiConnect error: {result['error']}")
 
             return result["result"]
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as err:
             raise AnkiConnectError(
                 "Could not connect to Anki. Please make sure Anki is running and the AnkiConnect plugin is installed."
-            )
+            ) from err
         except requests.exceptions.RequestException as e:
-            raise AnkiConnectError(f"Request to AnkiConnect failed: {e}")
+            raise AnkiConnectError(f"Request to AnkiConnect failed: {e}") from e
         except (json.JSONDecodeError, KeyError) as e:
-            raise AnkiConnectError(f"Invalid response from AnkiConnect: {e}")
+            raise AnkiConnectError(f"Invalid response from AnkiConnect: {e}") from e
 
     def version(self) -> int:
         """Get the version of the AnkiConnect API.
@@ -63,7 +63,7 @@ class AnkiClient:
         """
         return cast(int, self._request("version"))
 
-    def check_connection(self) -> Tuple[bool, str]:
+    def check_connection(self) -> tuple[bool, str]:
         """Check if we can connect to AnkiConnect.
 
         Returns:
@@ -155,12 +155,9 @@ class AnkiClient:
                 if system == "Darwin":  # macOS
                     anki_path = "/Applications/Anki.app"
                     anki_installed = shutil.which("anki") is not None or (
-                        subprocess.run(["ls", anki_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode
-                        == 0
+                        subprocess.run(["ls", anki_path], capture_output=True).returncode == 0
                     )
-                elif system == "Windows":
-                    anki_installed = shutil.which("anki") is not None
-                elif system == "Linux":
+                elif system == "Windows" or system == "Linux":
                     anki_installed = shutil.which("anki") is not None
 
                 if not anki_installed:
@@ -186,7 +183,7 @@ class AnkiClient:
         import subprocess
         import time
 
-        ISSUES_MESSAGE = (
+        issues_message = (
             "Background launch is not yet implemented for {system}. See docs/issues/background-launch.md for status."
         )
 
@@ -194,20 +191,15 @@ class AnkiClient:
         try:
             if system == "Darwin":  # macOS
                 subprocess.Popen(["open", "--background", "-a", "Anki"])
-            elif system == "Windows":
+            elif system == "Windows" or system == "Linux":
                 return (
                     False,
-                    ISSUES_MESSAGE.format(system=system),
-                )
-            elif system == "Linux":
-                return (
-                    False,
-                    ISSUES_MESSAGE.format(system=system),
+                    issues_message.format(system=system),
                 )
             else:
                 return (
                     False,
-                    ISSUES_MESSAGE.format(system=system),
+                    issues_message.format(system=system),
                 )
 
             # Wait for AnkiConnect to become available
@@ -254,7 +246,7 @@ class AnkiClient:
         templates = cast(dict[str, dict[str, str]], self._request("modelTemplates", modelName=note_type))
         return list(templates.keys())
 
-    def get_model_sort_field(self, note_type: str) -> Optional[str]:
+    def get_model_sort_field(self, note_type: str) -> str | None:
         """Get the field that is used for sorting in the browser.
 
         Args:
@@ -263,21 +255,18 @@ class AnkiClient:
         Returns:
             The name of the sort field, or None if not available
         """
-        try:
-            model_info = cast(dict[str, Any], self._request("modelGetJson", modelName=note_type))
-            sort_field_idx = cast(int, model_info.get("sortf", 0))  # Default to first field if not found
-            field_names: list[str] = self.get_field_names(note_type)
+        model_info = cast(dict[str, Any], self._request("modelGetJson", modelName=note_type))
+        sort_field_idx = cast(int, model_info.get("sortf", 0))  # Default to first field if not found
+        field_names: list[str] = self.get_field_names(note_type)
 
-            # Return the sort field if it exists in the field names
-            if field_names and 0 <= sort_field_idx < len(field_names):
-                return field_names[sort_field_idx]
+        # Return the sort field if it exists in the field names
+        if field_names and 0 <= sort_field_idx < len(field_names):
+            return field_names[sort_field_idx]
 
-            # Otherwise return None
-            return None
-        except Exception:
-            return None
+        # Otherwise return None
+        return None
 
-    def get_first_field(self, note_type: str) -> Optional[str]:
+    def get_first_field(self, note_type: str) -> str | None:
         """Get the first field of a note type, which is usually the required field.
 
         Args:

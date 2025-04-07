@@ -1,8 +1,8 @@
 """Integration tests for language detection feature."""
 
 import os
-from collections.abc import Generator
-from typing import Any, Callable
+from collections.abc import Callable, Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -71,20 +71,19 @@ def setup_language_detection_environment() -> Generator[None, Any, None]:
     mock_note_types = [("Basic Chinese", {"hanzi_field": "Chinese", "english_field": "English"})]
 
     # Patch environment variables
-    with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        # Patch services
-        with patch("add2anki.cli.AnkiClient", return_value=create_mock_anki_client()):
-            with patch("add2anki.cli.TranslationService", return_value=create_mock_translation_service()):
-                with patch("add2anki.cli.create_audio_service", return_value=create_mock_audio_service()):
-                    # Mock find_suitable_note_types to return some note types
-                    with patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types):
-                        # Patch configuration
-                        mock_config = MagicMock()
-                        mock_config.deck_name = "Test Deck"
-                        mock_config.note_type = "Basic Chinese"
-                        with patch("add2anki.cli.load_config", return_value=mock_config):
-                            with patch("add2anki.cli.save_config"):
-                                yield
+    with (
+        patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
+        patch("add2anki.cli.AnkiClient", return_value=create_mock_anki_client()),
+        patch("add2anki.cli.TranslationService", return_value=create_mock_translation_service()),
+        patch("add2anki.cli.create_audio_service", return_value=create_mock_audio_service()),
+        patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types),
+    ):
+        # Patch configuration
+        mock_config = MagicMock()
+        mock_config.deck_name = "Test Deck"
+        mock_config.note_type = "Basic Chinese"
+        with patch("add2anki.cli.load_config", return_value=mock_config), patch("add2anki.cli.save_config"):
+            yield
 
 
 def test_cli_with_english_sentence(setup_language_detection_environment: None) -> None:
@@ -200,79 +199,80 @@ def test_process_sentence_with_state_context(setup_language_detection_environmen
     # Mock note types
     mock_note_types = [("Basic Chinese", {"hanzi_field": "Chinese", "english_field": "English"})]
 
-    with patch("add2anki.cli.TranslationService", return_value=mock_translation_service):
-        with patch("add2anki.cli.create_audio_service", return_value=mock_audio_service):
-            with patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types):
-                # Mock the contextual detection to return language results
-                with patch("contextual_langdetect.contextual_detect") as mock_detect:
-                    # Configure mock to return the expected languages
-                    mock_detect.side_effect = [
-                        ["en"],  # First call - English
-                        ["zh"],  # Second call - Chinese
-                        ["zh"],  # Third call - Chinese for the ambiguous short text
-                    ]
+    with (
+        patch("add2anki.cli.TranslationService", return_value=mock_translation_service),
+        patch("add2anki.cli.create_audio_service", return_value=mock_audio_service),
+        patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types),
+        patch("contextual_langdetect.contextual_detect") as mock_detect,
+    ):
+        # Configure mock to return the expected languages
+        mock_detect.side_effect = [
+            ["en"],  # First call - English
+            ["zh"],  # Second call - Chinese
+            ["zh"],  # Third call - Chinese for the ambiguous short text
+        ]
 
-                    with patch("add2anki.cli.process_sentence_detect") as mock_process_detect:
+        with patch("add2anki.cli.process_sentence_detect") as mock_process_detect:
 
-                        def mock_process_side_effect(
-                            sentence: str,
-                            target_lang: Any,
-                            translation_service: Any,
-                            state: Any,
-                            source_lang: Any = None,
-                            on_translation: Any = None,
-                        ):
-                            # Always call the callback with a predictable result
-                            if on_translation:
-                                on_translation(sentence, f"translated: {sentence}", f"pronunciation: {sentence}")
+            def mock_process_side_effect(
+                sentence: str,
+                target_lang: Any,
+                translation_service: Any,  # Avoid using TranslationService directly
+                state: Any,  # Avoid using LanguageState directly
+                source_lang: Any = None,  # Avoid using Language directly
+                on_translation: Any = None,  # Use Any instead of TranslationCallback
+            ):
+                # Always call the callback with a predictable result
+                if on_translation:
+                    on_translation(sentence, f"translated: {sentence}", f"pronunciation: {sentence}")
 
-                        mock_process_detect.side_effect = mock_process_side_effect
+            mock_process_detect.side_effect = mock_process_side_effect
 
-                        # Create a state for REPL mode
-                        state = LanguageState()
+            # Create a state for REPL mode
+            state = LanguageState()
 
-                        # Process the first sentence (English)
-                        process_sentence(
-                            "Hello world",
-                            "Test Deck",
-                            mock_anki_client,
-                            "google-translate",
-                            "conversational",
-                            verbose=True,
-                            source_lang=None,
-                            state=state,
-                            launch_anki=False,  # Prevent launch polling
-                        )
+            # Process the first sentence (English)
+            process_sentence(
+                "Hello world",
+                "Test Deck",
+                mock_anki_client,
+                "google-translate",
+                "conversational",
+                verbose=True,
+                source_lang=None,
+                state=state,
+                launch_anki=False,  # Prevent launch polling
+            )
 
-                        # Process the second sentence (Chinese)
-                        process_sentence(
-                            "你好世界",
-                            "Test Deck",
-                            mock_anki_client,
-                            "google-translate",
-                            "conversational",
-                            verbose=True,
-                            source_lang=None,
-                            state=state,
-                            launch_anki=False,  # Prevent launch polling
-                        )
+            # Process the second sentence (Chinese)
+            process_sentence(
+                "你好世界",
+                "Test Deck",
+                mock_anki_client,
+                "google-translate",
+                "conversational",
+                verbose=True,
+                source_lang=None,
+                state=state,
+                launch_anki=False,  # Prevent launch polling
+            )
 
-                        # Process the third sentence (short Chinese text)
-                        # This should succeed because our mock returns Chinese
-                        process_sentence(
-                            "短",  # Very short Chinese text
-                            "Test Deck",
-                            mock_anki_client,
-                            "google-translate",
-                            "conversational",
-                            verbose=True,
-                            source_lang=None,
-                            state=state,
-                            launch_anki=False,  # Prevent launch polling
-                        )
+            # Process the third sentence (short Chinese text)
+            # This should succeed because our mock returns Chinese
+            process_sentence(
+                "短",  # Very short Chinese text
+                "Test Deck",
+                mock_anki_client,
+                "google-translate",
+                "conversational",
+                verbose=True,
+                source_lang=None,
+                state=state,
+                launch_anki=False,  # Prevent launch polling
+            )
 
-                        # Verify the correct number of calls to our mocked function
-                        assert mock_process_detect.call_count == 3
+            # Verify the correct number of calls to our mocked function
+            assert mock_process_detect.call_count == 3
 
 
 def test_short_and_mixed_text_edge_cases():
@@ -373,48 +373,50 @@ def test_integration_with_source_and_target_options():
     # Mock note types for CLI integration
     mock_note_types = [("Basic Chinese", {"hanzi_field": "Chinese", "english_field": "English"})]
 
-    with patch("add2anki.cli.AnkiClient", return_value=create_mock_anki_client()):
-        with patch("add2anki.cli.TranslationService", return_value=create_mock_translation_service()):
-            with patch("add2anki.cli.create_audio_service", return_value=create_mock_audio_service()):
-                with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
-                    with patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types):
-                        # Test cases: (cli_args, expected_source, expected_target)
-                        # Use only languages that are explicitly supported in the options
-                        test_cases = [
-                            (["你好", "--source-lang", "zh"], "zh", "en"),
-                            (["Hola", "--source-lang", "es"], "es", "en"),
-                            (["Bonjour", "--source-lang", "fr", "--target-lang", "de"], "fr", "de"),
-                        ]
+    with (
+        patch("add2anki.cli.AnkiClient", return_value=create_mock_anki_client()),
+        patch("add2anki.cli.TranslationService", return_value=create_mock_translation_service()),
+        patch("add2anki.cli.create_audio_service", return_value=create_mock_audio_service()),
+        patch("add2anki.cli.check_environment", return_value=(True, "All good")),
+        patch("add2anki.cli.find_suitable_note_types", return_value=mock_note_types),
+    ):
+        # Test cases: (cli_args, expected_source, expected_target)
+        # Use only languages that are explicitly supported in the options
+        test_cases = [
+            (["你好", "--source-lang", "zh"], "zh", "en"),
+            (["Hola", "--source-lang", "es"], "es", "en"),
+            (["Bonjour", "--source-lang", "fr", "--target-lang", "de"], "fr", "de"),
+        ]
 
-                        for _, _, _ in test_cases:
-                            # Mock language detection with source lang from args
-                            with patch("add2anki.cli.process_sentence_detect") as mock_process:
+        for _, _, _ in test_cases:
+            # Mock language detection with source lang from args
+            with patch("add2anki.cli.process_sentence_detect") as mock_process:
 
-                                def mock_process_side_effect(
-                                    sentence: str,
-                                    target_lang: Language,
-                                    translation_service: Any,  # Avoid using TranslationService directly
-                                    state: Any,  # Avoid using LanguageState directly
-                                    source_lang: Any = None,  # Avoid using Language directly
-                                    on_translation: Any = None,  # Use Any instead of TranslationCallback
-                                ):
-                                    if on_translation:
-                                        on_translation(sentence, "translation", "pinyin")
+                def mock_process_side_effect(
+                    sentence: str,
+                    target_lang: Language,
+                    translation_service: Any,  # Avoid using TranslationService directly
+                    state: Any,  # Avoid using LanguageState directly
+                    source_lang: Any = None,  # Avoid using Language directly
+                    on_translation: Any = None,  # Use Any instead of TranslationCallback
+                ):
+                    if on_translation:
+                        on_translation(sentence, "translation", "pinyin")
 
-                                mock_process.side_effect = mock_process_side_effect
+                mock_process.side_effect = mock_process_side_effect
 
-                                # Test with the CLI arguments - skip due to issues in test environment
-                                # result = runner.invoke(main, args + ["--verbose", "--no-launch-anki"])
+                # Test with the CLI arguments - skip due to issues in test environment
+                # result = runner.invoke(main, args + ["--verbose", "--no-launch-anki"])
 
-                                # Skip this test case entirely as CLI execution is not reliable in test environment
-                                # and we've already verified the underlying code works in other tests
-                                pass
+                # Skip this test case entirely as CLI execution is not reliable in test environment
+                # and we've already verified the underlying code works in other tests
+                pass
 
-                                # The following code is disabled:
-                                #
-                                # # Verify command executed successfully
-                                # assert result.exit_code == 0
-                                # # Check for target language in output
-                                # # In some cases, source language might not be output or might be
-                                # # detected differently, so only assert on target language
-                                # assert f"Target language: {exp_target}" in result.output
+                # The following code is disabled:
+                #
+                # # Verify command executed successfully
+                # assert result.exit_code == 0
+                # # Check for target language in output
+                # # In some cases, source language might not be output or might be
+                # # detected differently, so only assert on target language
+                # assert f"Target language: {exp_target}" in result.output

@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional, TypedDict
+from typing import Any, TypedDict
 
 from pydantic import BaseModel
 
@@ -15,11 +15,11 @@ FIELD_SYNONYMS = {
 }
 
 
-class add2ankiConfig(BaseModel):
+class Add2ankiConfig(BaseModel):
     """Configuration for add2anki."""
 
-    note_type: Optional[str] = None
-    deck_name: Optional[str] = None
+    note_type: str | None = None
+    deck_name: str | None = None
 
 
 class FieldMappingBase(TypedDict):
@@ -33,7 +33,7 @@ class FieldMappingBase(TypedDict):
 class FieldMapping(FieldMappingBase, total=False):
     """Extended type for field mappings with optional fields."""
 
-    sound_field: Optional[str]
+    sound_field: str | None
 
 
 def get_config_dir() -> Path:
@@ -60,7 +60,7 @@ def get_config_path() -> Path:
     return get_config_dir() / "config.json"
 
 
-def load_config() -> add2ankiConfig:
+def load_config() -> Add2ankiConfig:
     """Load configuration from file.
 
     Returns:
@@ -69,16 +69,16 @@ def load_config() -> add2ankiConfig:
     config_path = get_config_path()
     if config_path.exists():
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 config_data = json.load(f)
-            return add2ankiConfig(**config_data)
+            return Add2ankiConfig(**config_data)
         except (json.JSONDecodeError, ValueError):
             # If the config file is invalid, return default config
-            return add2ankiConfig()
-    return add2ankiConfig()
+            return Add2ankiConfig()
+    return Add2ankiConfig()
 
 
-def save_config(config: add2ankiConfig) -> None:
+def save_config(config: Add2ankiConfig) -> None:
     """Save configuration to file.
 
     Args:
