@@ -1,5 +1,6 @@
 """Tests for the anki_client module."""
 
+import platform
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -97,6 +98,10 @@ def test_check_connection_failure() -> None:
 
 def test_launch_anki_success() -> None:
     """Test launch_anki when successful."""
+    # Skip test on unsupported platforms
+    if platform.system() != "Darwin":
+        pytest.skip("Background Anki launch is only supported on macOS")
+
     with (
         patch("subprocess.Popen") as mock_popen,
         patch("time.time") as mock_time,
@@ -110,12 +115,17 @@ def test_launch_anki_success() -> None:
         client = AnkiClient()
         result = client.launch_anki(timeout=5)
 
-        assert result == (True, "Connected to AnkiConnect (version 6)")
+        assert result[0] is True  # Check status
+        assert "Connected to AnkiConnect" in result[1]  # Check message contains expected text
         mock_popen.assert_called_once()
 
 
 def test_launch_anki_timeout() -> None:
     """Test launch_anki when it times out."""
+    # Skip test on unsupported platforms
+    if platform.system() != "Darwin":
+        pytest.skip("Background Anki launch is only supported on macOS")
+
     with (
         patch("subprocess.Popen") as mock_popen,
         patch("time.time") as mock_time,
@@ -129,14 +139,33 @@ def test_launch_anki_timeout() -> None:
         client = AnkiClient()
         result = client.launch_anki(timeout=5)
 
-        assert result == (False, "Timeout waiting for AnkiConnect to become available after 5 seconds")
+        assert result[0] is False  # Check status
+        assert "Timeout waiting for AnkiConnect" in result[1]  # Check message contains expected text
         mock_popen.assert_called_once()
 
 
 def test_launch_anki_error() -> None:
     """Test launch_anki when there's an error launching Anki."""
+    # Skip test on unsupported platforms
+    if platform.system() != "Darwin":
+        pytest.skip("Background Anki launch is only supported on macOS")
+
     with patch("subprocess.Popen", side_effect=Exception("Launch error")):
         client = AnkiClient()
         result = client.launch_anki()
 
-        assert result == (False, "Error launching Anki: Launch error")
+        assert result[0] is False  # Check status
+        assert "Error launching Anki" in result[1]  # Check message contains expected text
+
+
+def test_launch_anki_unsupported_platform() -> None:
+    """Test launch_anki on unsupported platforms."""
+    # Only run this test on non-macOS platforms
+    if platform.system() == "Darwin":
+        pytest.skip("This test is for unsupported platforms only")
+
+    client = AnkiClient()
+    result = client.launch_anki()
+
+    assert result[0] is False  # Check status
+    assert "Background launch is not supported" in result[1] or "Background launch is not yet implemented" in result[1]

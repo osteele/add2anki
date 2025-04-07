@@ -170,6 +170,17 @@ class AnkiClient:
                     )
             return False, f"Error connecting to AnkiConnect: {e}"
 
+    def is_background_launch_supported(self) -> bool:
+        """Check if background Anki launch is supported on the current platform.
+
+        Returns:
+            True if background launch is supported, False otherwise
+        """
+        import platform
+
+        system = platform.system()
+        return system == "Darwin"  # Only macOS is supported currently
+
     def launch_anki(self, timeout: int = 30) -> tuple[bool, str]:
         """Launch Anki and wait for AnkiConnect to become available.
 
@@ -183,24 +194,21 @@ class AnkiClient:
         import subprocess
         import time
 
-        issues_message = (
-            "Background launch is not yet implemented for {system}. See docs/issues/background-launch.md for status."
-        )
-
         system = platform.system()
+        # Check if background launch is supported on this platform
+        if not self.is_background_launch_supported():
+            issues_message = (
+                "Background launch is not supported on {system}. See docs/issues/background-launch.md for status."
+            )
+            return False, issues_message.format(system=system)
+
         try:
+            # Only macOS is supported for now
             if system == "Darwin":  # macOS
                 subprocess.Popen(["open", "--background", "-a", "Anki"])
-            elif system == "Windows" or system == "Linux":
-                return (
-                    False,
-                    issues_message.format(system=system),
-                )
             else:
-                return (
-                    False,
-                    issues_message.format(system=system),
-                )
+                # This should never happen due to the check above, but just in case
+                return False, f"Background launch not implemented for {system}"
 
             # Wait for AnkiConnect to become available
             start_time = time.time()
