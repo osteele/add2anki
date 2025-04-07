@@ -5,25 +5,28 @@ Currently supports English to Mandarin Chinese translation with audio generation
 - Google Translate TTS (default, no authentication required)
 - ElevenLabs (requires API key)
 
+For related language learning resources, visit [Oliver Steele's Language
+Learning Resources](https://osteele.com/topics/language-learning/).
+
 ## Features
 
-- Translate English text to Mandarin Chinese using OpenAI's GPT models
-- Support for different translation styles:
+- 🔄 Translate English text to Mandarin Chinese using OpenAI's GPT models
+- 🗣️ Support for different translation styles:
   - `conversational` (default): Natural, everyday language
   - `formal`: More polite expressions appropriate for business or formal situations
   - `written`: Literary style suitable for written texts
-- Generate high-quality audio for Chinese text using one of two providers:
+- 🔊 Generate high-quality audio for Chinese text using one of two providers:
   - Google Translate TTS (default, no authentication required)
   - ElevenLabs (requires API key)
-- Add cards to Anki with translation and audio
-- Add custom tags to notes or use the default "add2anki" tag
-- Context-aware language detection that automatically identifies languages
-- Automatic detection of suitable note types and field mappings
-- Support for custom note types with field name synonyms (Hanzi/Chinese, Pinyin/Pronunciation, English/Translation)
-- Configuration saved between sessions
-- Support for batch processing from text, CSV/TSV, or SRT subtitle files
-- Parse SRT files to create cards from Mandarin subtitles
-- Interactive mode for adding cards one by one
+- 🃏 Add cards to Anki with translation and audio
+- 🏷️ Add custom tags to notes or use the default "add2anki" tag
+- 🧠 Context-aware language detection that automatically identifies languages
+- 🔍 Automatic detection of suitable note types and field mappings
+- 🔧 Support for custom note types with field name synonyms (Hanzi/Chinese, Pinyin/Pronunciation, English/Translation)
+- 💾 Configuration saved between sessions
+- 📚 Support for batch processing from text, CSV/TSV, or SRT subtitle files
+- 🎬 Parse SRT files to create cards from Mandarin subtitles
+- 🤔 Interactive mode for adding cards one by one
 
 ## Prerequisites
 
@@ -35,8 +38,28 @@ Currently supports English to Mandarin Chinese translation with audio generation
 
 ## Installation
 
-1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/)
-2. Run `uv tool install git_https://github.com/osteele/add2anki@release`
+You can install add2anki using either `uv` or `pipx`:
+
+### Using uv
+
+```bash
+# Install uv if you don't have it already
+# See [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/)
+
+# Install add2anki
+uv tool install add2anki
+```
+
+### Using pipx
+
+```bash
+# Install pipx if you don't have it already
+pip install --user pipx
+pipx ensurepath
+
+# Install add2anki
+pipx install add2anki
+```
 
 ## Environment Variables
 
