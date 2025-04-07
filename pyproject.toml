@@ -9,6 +9,7 @@ description = "CLI tool to add language learning cards to Anki"
 authors = [{ name = "Oliver Steele", email = "steele@osteele.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
     "click>=8.1.7",
     "rich>=13.7.0",
@@ -19,6 +20,12 @@ dependencies = [
     "fast-langdetect>=0.3.1",
     "contextual-langdetect==0.1.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/osteele/add2anki"
+Documentation = "https://osteele.github.io/add2anki/"
+Issues = "https://github.com/osteele/add2anki/issues"
+Source = "https://github.com/osteele/add2anki"
 
 [project.scripts]
 add2anki = "add2anki.cli:main"
