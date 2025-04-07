@@ -38,6 +38,26 @@ def is_mandarin(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", text))
 
 
+def strip_speaker_name(text: str) -> str:
+    """Strip speaker names from the beginning of utterances.
+
+    For example, "Oliver: 哦,对" becomes "哦,对".
+
+    Args:
+        text: The text to process
+
+    Returns:
+        The text with speaker name removed if present
+    """
+    # Match a name followed by a colon at the beginning of the text
+    # The name should be a sequence of non-colon characters
+    match = re.match(r"^([^:]+):\s*(.+)$", text)
+    if match:
+        # Return the part after the colon, trimmed
+        return match.group(2).strip()
+    return text
+
+
 def parse_srt_file(file_path: str | pathlib.Path) -> Iterator[SrtEntry]:
     """Parse an SRT file and yield subtitle entries.
 
@@ -101,18 +121,24 @@ def filter_srt_entries(entries: Iterator[SrtEntry]) -> Iterator[SrtEntry]:
     seen_texts: set[str] = set()
 
     for entry in entries:
+        # Strip speaker names if present
+        cleaned_text = strip_speaker_name(entry.text)
+
+        # Create a new entry with the cleaned text
+        cleaned_entry = SrtEntry(entry.index, entry.start_time, entry.end_time, cleaned_text)
+
         # Check if the subtitle is a single word
         # We split by both spaces and Chinese characters
-        words = re.findall(r"[\u4e00-\u9fff]|[^\s\u4e00-\u9fff]+", entry.text)
+        words = re.findall(r"[\u4e00-\u9fff]|[^\s\u4e00-\u9fff]+", cleaned_text)
 
         # Skip entries with only one word
         if len(words) <= 1:
             continue
 
         # Skip duplicate entries
-        normalized_text = entry.text.strip()
+        normalized_text = cleaned_text.strip()
         if normalized_text in seen_texts:
             continue
 
         seen_texts.add(normalized_text)
-        yield entry
+        yield cleaned_entry
