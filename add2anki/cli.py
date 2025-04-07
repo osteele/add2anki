@@ -863,7 +863,7 @@ def process_sentence(
 
         # Generate audio for the target language text
         audio_path = None
-        if audio_provider != "none":
+        if audio_provider != "none" and not dry_run:
             try:
                 audio_path = audio_service.generate_audio_file(hanzi)
                 if verbose:
@@ -1074,8 +1074,10 @@ def process_batch(
             console.print(f"Pinyin: {pinyin}")
 
         # Generate audio
-        audio_path = audio_service.generate_audio_file(hanzi)
-        audio_url = f"[sound:{os.path.basename(audio_path)}]"
+        audio_path = None
+        if audio_provider != "none" and not dry_run:
+            audio_path = audio_service.generate_audio_file(hanzi)
+            audio_url = f"[sound:{os.path.basename(audio_path)}]"
 
         # Create note fields - more intelligently map fields based on detected languages
         fields: dict[str, str] = {}
@@ -1092,7 +1094,7 @@ def process_batch(
             elif find_matching_field(field, "english") or (detected and find_matching_field(field, detected)):
                 fields[field] = sentence
             # Sound/audio field
-            elif "sound" in field.lower() or "audio" in field.lower():
+            elif ("sound" in field.lower() or "audio" in field.lower()) and audio_path:
                 fields[field] = audio_url
 
         # Add note to Anki
@@ -1357,9 +1359,26 @@ def process_srt_file(
                     pinyin = data.get("pinyin", "")
                     english = data.get("english", "")
 
-                    # Generate audio for the Mandarin text
-                    console.print(f"[bold blue]Generating audio for:[/bold blue] {hanzi}")
-                    audio_path = audio_service.generate_audio_file(hanzi)
+                    # Generate audio for the Mandarin text (skip in dry-run mode)
+                    audio_path = None
+                    audio_config = None
+
+                    if not dry_run:
+                        console.print(f"[bold blue]Generating audio for:[/bold blue] {hanzi}")
+                        audio_path = audio_service.generate_audio_file(hanzi)
+
+                        # Prepare audio field
+                        sound_field = field_names[2] if len(field_names) > 2 else "Sound"
+                        audio_config = create_audio_config(
+                            audio_path, field_names, [sound_field] if sound_field in field_names else ["Sound"]
+                        )
+                    else:
+                        # In dry-run mode, just create a placeholder for display
+                        audio_config = {
+                            "filename": f"[Would generate audio for '{hanzi}']",
+                            "path": "[dry-run-placeholder]",
+                            "fields": ["Sound"],
+                        }
 
                     # Prepare fields for the note
                     fields: dict[str, str] = {}
@@ -1374,12 +1393,6 @@ def process_srt_file(
 
                     # Get field names for the selected note type
                     field_names = [hanzi_field, pinyin_field, english_field]
-
-                    # Prepare audio field
-                    sound_field = field_names[2] if len(field_names) > 2 else "Sound"
-                    audio_config = create_audio_config(
-                        audio_path, field_names, [sound_field] if sound_field in field_names else ["Sound"]
-                    )
 
                     # Show preview in dry run mode
                     if dry_run:
