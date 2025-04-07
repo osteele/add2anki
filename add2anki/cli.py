@@ -4,7 +4,8 @@ import csv
 import logging
 import os
 import pathlib
-from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple, TypedDict, cast
+from collections.abc import Sequence
+from typing import Any, Protocol, TypedDict, cast
 
 import click
 from contextual_langdetect import contextual_detect
@@ -24,7 +25,7 @@ from add2anki.config import (
     load_config,
     save_config,
 )
-from add2anki.exceptions import LanguageDetectionError, add2ankiError
+from add2anki.exceptions import Add2ankiError, LanguageDetectionError
 from add2anki.language_detection import Language, LanguageState
 from add2anki.language_detection import process_batch as process_batch_detect
 from add2anki.language_detection import process_sentence as process_sentence_detect
@@ -48,8 +49,8 @@ class AnkiClientProtocol(Protocol):
     def get_note_types(self) -> list[str]: ...
     def get_field_names(self, note_type: str) -> list[str]: ...
     def get_card_templates(self, note_type: str) -> list[str]: ...
-    def get_model_sort_field(self, note_type: str) -> Optional[str]: ...
-    def get_first_field(self, note_type: str) -> Optional[str]: ...
+    def get_model_sort_field(self, note_type: str) -> str | None: ...
+    def get_first_field(self, note_type: str) -> str | None: ...
     def get_deck_names(self) -> list[str]: ...
     def create_deck(self, deck_name: str) -> int: ...
     def add_note(
@@ -79,7 +80,7 @@ def is_chinese_learning_table(headers: Sequence[str]) -> bool:
     return any(indicator in header for header in headers_lower for indicator in chinese_indicators)
 
 
-def map_csv_headers_to_anki_fields(headers: Sequence[str], field_list: Sequence[str]) -> Dict[str, str]:
+def map_csv_headers_to_anki_fields(headers: Sequence[str], field_list: Sequence[str]) -> dict[str, str]:
     """Map CSV/TSV headers to Anki note fields.
 
     Args:
@@ -89,7 +90,7 @@ def map_csv_headers_to_anki_fields(headers: Sequence[str], field_list: Sequence[
     Returns:
         Dictionary mapping Anki field names to CSV/TSV column names
     """
-    field_mapping: Dict[str, str] = {}
+    field_mapping: dict[str, str] = {}
 
     # Create a case-insensitive mapping of Anki fields
     anki_fields_lower = {field.lower(): field for field in field_list}
@@ -131,7 +132,7 @@ def map_csv_headers_to_anki_fields(headers: Sequence[str], field_list: Sequence[
     return field_mapping
 
 
-def verify_audio_files(file_path: str, rows: List[Dict[str, str]], audio_columns: List[str]) -> List[str]:
+def verify_audio_files(file_path: str, rows: list[dict[str, str]], audio_columns: list[str]) -> list[str]:
     """Verify that audio files referenced in the CSV/TSV exist.
 
     Args:
@@ -142,13 +143,13 @@ def verify_audio_files(file_path: str, rows: List[Dict[str, str]], audio_columns
     Returns:
         List of missing audio files
     """
-    missing_files: List[str] = []
+    missing_files: list[str] = []
     base_dir = pathlib.Path(file_path).parent
     media_dir = base_dir / "media"
 
     for row_num, row in enumerate(rows, 1):
         for column in audio_columns:
-            if column in row and row[column]:
+            if row.get(column):
                 audio_value = row[column]
 
                 # Handle Anki-style sound field value
@@ -171,7 +172,7 @@ def verify_audio_files(file_path: str, rows: List[Dict[str, str]], audio_columns
     return missing_files
 
 
-def find_audio_columns(headers: Sequence[str]) -> List[str]:
+def find_audio_columns(headers: Sequence[str]) -> list[str]:
     """Find columns that might contain audio file paths.
 
     Args:
@@ -184,7 +185,7 @@ def find_audio_columns(headers: Sequence[str]) -> List[str]:
     return [header for header in headers if any(indicator in header.lower() for indicator in audio_indicators)]
 
 
-def check_environment(audio_provider: str) -> Tuple[bool, str]:
+def check_environment(audio_provider: str) -> tuple[bool, str]:
     """Check if all required environment variables are set.
 
     Args:
@@ -207,7 +208,7 @@ def check_environment(audio_provider: str) -> Tuple[bool, str]:
     return True, "All required environment variables are set"
 
 
-def get_required_field(anki_client: AnkiClientProtocol, note_type: str) -> Optional[str]:
+def get_required_field(anki_client: AnkiClientProtocol, note_type: str) -> str | None:
     """Get the required field for a note type.
 
     Args:
@@ -227,7 +228,7 @@ def get_required_field(anki_client: AnkiClientProtocol, note_type: str) -> Optio
     return required_field
 
 
-def filter_compatible_note_types(anki_client: AnkiClientProtocol, headers: Sequence[str]) -> List[str]:
+def filter_compatible_note_types(anki_client: AnkiClientProtocol, headers: Sequence[str]) -> list[str]:
     """Filter note types to only include those that have compatible required fields.
 
     Args:
@@ -240,7 +241,7 @@ def filter_compatible_note_types(anki_client: AnkiClientProtocol, headers: Seque
     all_note_types = anki_client.get_note_types()
     headers_lower = [h.lower() for h in headers]
 
-    compatible_note_types: List[str] = []
+    compatible_note_types: list[str] = []
 
     for nt in all_note_types:
         # Check if there's some overlap between headers and fields
@@ -268,7 +269,7 @@ def filter_compatible_note_types(anki_client: AnkiClientProtocol, headers: Seque
 
 def check_note_type_compatibility(
     anki_client: AnkiClientProtocol, note_type: str, headers: Sequence[str]
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Check if a note type is compatible with the given headers.
 
     Args:
@@ -405,11 +406,11 @@ def process_structured_file(
     anki_client: AnkiClientProtocol,
     audio_provider: str,
     style: StyleType,
-    note_type: Optional[str] = None,
+    note_type: str | None = None,
     dry_run: bool = False,
     verbose: bool = False,
     debug: bool = False,
-    tags: Optional[str] = None,
+    tags: str | None = None,
 ) -> None:
     """Process a CSV or TSV file and add the rows to Anki.
 
@@ -434,22 +435,22 @@ def process_structured_file(
         delimiter = "\t"
         file_type = "TSV"
     else:
-        raise add2ankiError(f"Unsupported file extension: {file_ext}. Expected .csv or .tsv")
+        raise Add2ankiError(f"Unsupported file extension: {file_ext}. Expected .csv or .tsv")
 
     # Read the file
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=delimiter)
             if not reader.fieldnames:
-                raise add2ankiError(f"No headers found in {file_type} file")
+                raise Add2ankiError(f"No headers found in {file_type} file")
 
             headers = reader.fieldnames
             rows = list(reader)
 
             if not rows:
-                raise add2ankiError(f"No data rows found in {file_type} file")
+                raise Add2ankiError(f"No data rows found in {file_type} file")
     except Exception as e:
-        raise add2ankiError(f"Error reading {file_type} file: {e}")
+        raise Add2ankiError(f"Error reading {file_type} file: {e}") from e
 
     console.print(f"[bold green]Read {len(rows)} rows from {file_type} file[/bold green]")
 
@@ -464,7 +465,7 @@ def process_structured_file(
         if missing_files:
             for missing in missing_files:
                 console.print(f"[bold red]Missing audio file:[/bold red] {missing}")
-            raise add2ankiError(f"Found {len(missing_files)} missing audio files. Please fix before continuing.")
+            raise Add2ankiError(f"Found {len(missing_files)} missing audio files. Please fix before continuing.")
 
     # Load or create configuration
     config = load_config()
@@ -516,7 +517,7 @@ def process_structured_file(
 
         # For non-Chinese learning, only use note type from command line or prompt
         # (don't use or save to config)
-        selected_note_type: Optional[str] = note_type
+        selected_note_type: str | None = note_type
 
         if not selected_note_type:
             # Filter note types that are compatible with our CSV headers
@@ -633,20 +634,22 @@ def process_structured_file(
                 # Skip translation if:
                 # 1. There's no English field in the note type
                 # 2. English field is already provided in the CSV row
-                if not english_field or (english_field in fields and fields[english_field]):
+                if not english_field or (fields.get(english_field)):
                     needs_translation = False
 
                 # Skip audio generation if:
                 # 1. There's no Sound field in the note type
                 # 2. Sound field is provided in the CSV row as a file path
                 # 3. There's a column with audio/sound in the name and this row has a value for it
-                if not sound_field or (sound_field in fields and fields[sound_field]):
-                    needs_audio = False
-                elif audio_columns and any(col in row and row[col] for col in audio_columns):
+                if (
+                    not sound_field
+                    or (fields.get(sound_field))
+                    or (audio_columns and any(col in row and row[col] for col in audio_columns))
+                ):
                     needs_audio = False
 
                 # If we have the Hanzi but need to generate pinyin, english, or audio
-                if hanzi_field in fields and fields[hanzi_field]:
+                if hanzi_field and fields.get(hanzi_field):
                     hanzi_text = fields[hanzi_field]
 
                     # Translate if needed
@@ -679,7 +682,7 @@ def process_structured_file(
                 # Check for audio fields to import
                 audio_config = None
                 for col in audio_columns:
-                    if col in row and row[col]:
+                    if row.get(col):
                         audio_value = row[col]
 
                         # Handle Anki-style sound field value
@@ -741,7 +744,7 @@ def process_structured_file(
                 console.print(f"[bold red]Error adding note:[/bold red] {e}")
                 error_count += 1
 
-        except add2ankiError as e:
+        except Add2ankiError as e:
             console.print(f"[bold red]Error processing row {row_num}:[/bold red] {e}")
             error_count += 1
 
@@ -766,14 +769,14 @@ def process_sentence(
     anki_client: AnkiClientProtocol,
     audio_provider: str,
     style: StyleType,
-    note_type: Optional[str] = None,
+    note_type: str | None = None,
     dry_run: bool = False,
     verbose: bool = False,
     debug: bool = False,
-    tags: Optional[str] = None,
-    source_lang: Optional[str] = None,
-    target_lang: Optional[str] = None,
-    state: Optional[Any] = None,
+    tags: str | None = None,
+    source_lang: str | None = None,
+    target_lang: str | None = None,
+    state: Any | None = None,
     launch_anki: bool = True,
 ) -> None:
     """Process a single sentence and add it to Anki.
@@ -817,7 +820,7 @@ def process_sentence(
     else:
         note_types = find_suitable_note_types(anki_client)
         if not note_types:
-            raise add2ankiError("No suitable note types found")
+            raise Add2ankiError("No suitable note types found")
         if len(note_types) == 1:
             note_type_tuple = note_types[0]
             selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
@@ -869,7 +872,7 @@ def process_sentence(
                 console.print(f"[bold red]Error generating audio:[/bold red] {e}")
 
         # Create note fields - more intelligently map fields based on detected languages
-        fields: Dict[str, str] = {}
+        fields: dict[str, str] = {}
 
         # Map fields based on detected languages
         for field in field_names:
@@ -946,7 +949,7 @@ def process_sentence(
         raise
 
 
-def get_target_language(source_lang: Optional[str] = None, target_lang: Optional[str] = None) -> str:
+def get_target_language(source_lang: str | None = None, target_lang: str | None = None) -> str:
     """Determine target language based on source language.
 
     Args:
@@ -983,13 +986,13 @@ def process_batch(
     anki_client: AnkiClientProtocol,
     audio_provider: str,
     style: StyleType,
-    note_type: Optional[str] = None,
+    note_type: str | None = None,
     dry_run: bool = False,
     verbose: bool = False,
     debug: bool = False,
-    tags: Optional[str] = None,
-    source_lang: Optional[str] = None,
-    target_lang: Optional[str] = None,
+    tags: str | None = None,
+    source_lang: str | None = None,
+    target_lang: str | None = None,
     launch_anki: bool = True,
 ) -> None:
     """Process a batch of sentences and add them to Anki.
@@ -1029,7 +1032,7 @@ def process_batch(
     if not note_type:
         note_types = find_suitable_note_types(anki_client)
         if not note_types:
-            raise add2ankiError("No suitable note types found")
+            raise Add2ankiError("No suitable note types found")
         if len(note_types) == 1:
             note_type_tuple = note_types[0]
             note_type = note_type_tuple[0]  # Extract note type name from tuple
@@ -1075,7 +1078,7 @@ def process_batch(
         audio_url = f"[sound:{os.path.basename(audio_path)}]"
 
         # Create note fields - more intelligently map fields based on detected languages
-        fields: Dict[str, str] = {}
+        fields: dict[str, str] = {}
 
         # Map fields based on detected languages
         for field in field_names:
@@ -1121,13 +1124,13 @@ def process_batch(
         # Pre-analyze sentences for debugging/reporting
         if verbose:
             console.print("\n[bold blue]Analyzing input sentences...[/bold blue]")
-            language_stats: Dict[str, int] = {}
+            language_stats: dict[str, int] = {}
             ambiguous_count = 0
 
             # Use batch detection for better context
             detected_langs = contextual_detect(sentences)
 
-            for idx, (sentence, lang) in enumerate(zip(sentences, detected_langs), 1):
+            for idx, (sentence, lang) in enumerate(zip(sentences, detected_langs, strict=False), 1):
                 if not lang:
                     console.print(f"[yellow]Sentence {idx}: Could not detect language[/yellow]")
                     continue
@@ -1191,11 +1194,11 @@ def process_srt_file(
     anki_client: AnkiClientProtocol,
     audio_provider: str,
     style: StyleType,
-    note_type: Optional[str] = None,
+    note_type: str | None = None,
     dry_run: bool = False,
     verbose: bool = False,
     debug: bool = False,
-    tags: Optional[str] = None,
+    tags: str | None = None,
 ) -> None:
     """Process an SRT subtitle file and add the entries to Anki.
 
@@ -1219,7 +1222,7 @@ def process_srt_file(
         entries = list(filter_srt_entries(parse_srt_file(file_path)))
 
         if not entries:
-            raise add2ankiError("No valid subtitles found in the SRT file")
+            raise Add2ankiError("No valid subtitles found in the SRT file")
 
         console.print(f"[bold green]Found {len(entries)} valid subtitles[/bold green]")
 
@@ -1228,7 +1231,7 @@ def process_srt_file(
         mandarin_count = sum(1 for entry in sample_entries if is_mandarin(entry.text))
 
         if mandarin_count / len(sample_entries) < 0.5:
-            raise add2ankiError("The SRT file does not appear to contain Mandarin Chinese subtitles")
+            raise Add2ankiError("The SRT file does not appear to contain Mandarin Chinese subtitles")
 
         # Create translation service for translating Mandarin to English
         translation_service = TranslationService()
@@ -1256,7 +1259,7 @@ def process_srt_file(
                         "Please create a note type with fields for Hanzi/Chinese, Pinyin/Pronunciation, "
                         "and English/Translation."
                     )
-                    raise add2ankiError("No suitable note types found")
+                    raise Add2ankiError("No suitable note types found")
 
                 if len(suitable_note_types) == 1:
                     # If there's only one suitable note type, use it
@@ -1345,7 +1348,7 @@ def process_srt_file(
 
                     content = response.choices[0].message.content
                     if not content:
-                        raise add2ankiError("Empty response from OpenAI API")
+                        raise Add2ankiError("Empty response from OpenAI API")
 
                     data = json.loads(content)
 
@@ -1410,7 +1413,7 @@ def process_srt_file(
                     console.print(f"[bold green]✓ Added note with ID:[/bold green] {note_id}")
                     success_count += 1
 
-                except add2ankiError as e:
+                except Add2ankiError as e:
                     console.print(f"[bold red]Error processing subtitle {i}:[/bold red] {e}")
                     error_count += 1
 
@@ -1435,7 +1438,7 @@ def process_srt_file(
             if error_count > 0:
                 console.print(f"[bold red]Failed to add {error_count} notes[/bold red]")
 
-    except add2ankiError as e:
+    except Add2ankiError as e:
         console.print(f"[bold red]Error processing SRT file:[/bold red] {e}")
         raise
 
@@ -1522,21 +1525,21 @@ def process_srt_file(
     help="Target language code. If not specified, will be determined based on source language.",
 )
 def main(
-    sentences: Tuple[str, ...],
-    deck: Optional[str],
-    file: Optional[str],
+    sentences: tuple[str, ...],
+    deck: str | None,
+    file: str | None,
     host: str,
     port: int,
     audio_provider: str,
     style: str,
-    note_type: Optional[str],
-    tags: Optional[str],
+    note_type: str | None,
+    tags: str | None,
     dry_run: bool,
     verbose: bool,
     debug: bool,
     launch_anki: bool,
-    source_lang: Optional[str],
-    target_lang: Optional[str],
+    source_lang: str | None,
+    target_lang: str | None,
 ) -> None:
     """Add language learning cards to Anki.
 
@@ -1712,7 +1715,7 @@ def main(
         else:
             # Handle text files with one sentence per line
             try:
-                with open(file, "r", encoding="utf-8") as f:
+                with open(file, encoding="utf-8") as f:
                     lines = [line.strip() for line in f if line.strip()]
 
                 # Skip header if present
@@ -1738,7 +1741,7 @@ def main(
                         source_lang,
                     )
             except Exception as e:
-                raise add2ankiError(
+                raise Add2ankiError(
                     f"Unsupported file extension: {os.path.splitext(file)[1]}. Expected .csv or .tsv"
                 ) from e
     else:

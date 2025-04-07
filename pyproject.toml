@@ -31,14 +31,24 @@ line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-# Enable Pyflakes (`F`), pycodestyle (`E`), and import sorting (`I`)
-select = ["E", "F", "I"]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "A",   # flake8-builtins
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "N",   # naming conventions
+    "W",   # pycodestyle warnings
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "RUF", # ruff
+    "SIM", # flake8-simplify
+]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 
 [tool.pyright]
-python_version = "3.11"
+pythonVersion = "3.11"
 typeCheckingMode = "strict"
-stubPath = "stubs"

@@ -56,53 +56,49 @@ class TranslationService:
         Raises:
             TranslationError: If there is an error with the translation service.
         """
+        # Create style-specific instructions
+        style_instructions = {
+            "written": "Use a more formal, literary style suitable for written text. "
+            "Prefer more sophisticated vocabulary and sentence structures.",
+            "formal": "Use polite and respectful language suitable for formal situations. "
+            "Include appropriate honorifics and formal expressions.",
+            "conversational": "Use casual, natural language as would be used in everyday conversation. "
+            "Use common expressions and colloquial terms where appropriate.",
+        }
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are a helpful assistant that translates English to Mandarin Chinese. "
+                    f"Provide the translation in both Chinese characters (Hanzi) and Pinyin. "
+                    f"{style_instructions[style]} "
+                    f"Respond with a JSON object with the fields 'hanzi', 'pinyin', and 'english'.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Translate the following English text to Mandarin Chinese: {text}",
+                },
+            ],
+        )
+
+        # Parse the response content as JSON
+        content = response.choices[0].message.content
+        if not content:
+            raise TranslationError("Empty response from OpenAI API")
+
+        # Use Pydantic to validate the response
+        import json
+
         try:
-            # Create style-specific instructions
-            style_instructions = {
-                "written": "Use a more formal, literary style suitable for written text. "
-                "Prefer more sophisticated vocabulary and sentence structures.",
-                "formal": "Use polite and respectful language suitable for formal situations. "
-                "Include appropriate honorifics and formal expressions.",
-                "conversational": "Use casual, natural language as would be used in everyday conversation. "
-                "Use common expressions and colloquial terms where appropriate.",
-            }
-
-            response = self.client.chat.completions.create(
-                model=self.model,
-                response_format={"type": "json_object"},
-                messages=[
-                    {
-                        "role": "system",
-                        "content": f"You are a helpful assistant that translates English to Mandarin Chinese. "
-                        f"Provide the translation in both Chinese characters (Hanzi) and Pinyin. "
-                        f"{style_instructions[style]} "
-                        f"Respond with a JSON object with the fields 'hanzi', 'pinyin', and 'english'.",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Translate the following English text to Mandarin Chinese: {text}",
-                    },
-                ],
+            data = json.loads(content)
+            return TranslationResult(
+                hanzi=data.get("hanzi", ""),
+                pinyin=data.get("pinyin", ""),
+                english=data.get("english", text),
+                style=style,
             )
-
-            # Parse the response content as JSON
-            content = response.choices[0].message.content
-            if not content:
-                raise TranslationError("Empty response from OpenAI API")
-
-            # Use Pydantic to validate the response
-            import json
-
-            try:
-                data = json.loads(content)
-                return TranslationResult(
-                    hanzi=data.get("hanzi", ""),
-                    pinyin=data.get("pinyin", ""),
-                    english=data.get("english", text),
-                    style=style,
-                )
-            except json.JSONDecodeError as e:
-                raise TranslationError(f"Failed to parse OpenAI response as JSON: {e}")
-
-        except Exception as e:
-            raise TranslationError(f"Translation failed: {e}")
+        except json.JSONDecodeError as e:
+            raise TranslationError(f"Failed to parse OpenAI response as JSON: {e}") from e

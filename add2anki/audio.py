@@ -6,7 +6,7 @@ import tempfile
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import Any, cast
 
 import elevenlabs.client
 
@@ -57,52 +57,47 @@ class GoogleTranslateAudioService(AudioGenerationService):
         Raises:
             AudioGenerationError: If there is an error generating the audio.
         """
-        try:
-            # Prepare the URL for Google Translate TTS
-            # Using Mandarin Chinese (zh-CN) with a female voice
-            base_url = "https://translate.google.com/translate_tts"
-            params = {
-                "ie": "UTF-8",
-                "q": text,
-                "tl": "zh-CN",  # Mandarin Chinese
-                "client": "tw-ob",  # Required for the API to work
-                "ttsspeed": "1.0",  # Normal speed
-            }
+        # Prepare the URL for Google Translate TTS
+        # Using Mandarin Chinese (zh-CN) with a female voice
+        base_url = "https://translate.google.com/translate_tts"
+        params = {
+            "ie": "UTF-8",
+            "q": text,
+            "tl": "zh-CN",  # Mandarin Chinese
+            "client": "tw-ob",  # Required for the API to work
+            "ttsspeed": "1.0",  # Normal speed
+        }
 
-            url = f"{base_url}?{urllib.parse.urlencode(params)}"
+        url = f"{base_url}?{urllib.parse.urlencode(params)}"
 
-            # Set up headers to mimic a browser request
-            headers = {
-                "Referer": "https://translate.google.com/",
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/91.0.4472.124 Safari/537.36"
-                ),
-            }
+        # Set up headers to mimic a browser request
+        headers = {
+            "Referer": "https://translate.google.com/",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
+            ),
+        }
 
-            # Create the request
-            request = urllib.request.Request(url, headers=headers)
+        # Create the request
+        request = urllib.request.Request(url, headers=headers)
 
-            # Save to a temporary file
-            temp_dir = Path(tempfile.gettempdir()) / "add2anki"
-            temp_dir.mkdir(exist_ok=True)
-            audio_file_path = temp_dir / f"{hash(text)}.mp3"
+        # Save to a temporary file
+        temp_dir = Path(tempfile.gettempdir()) / "add2anki"
+        temp_dir.mkdir(exist_ok=True)
+        audio_file_path = temp_dir / f"{hash(text)}.mp3"
 
-            # Download the audio file
-            with urllib.request.urlopen(request) as response:
-                with open(audio_file_path, "wb") as file:
-                    file.write(response.read())
+        # Download the audio file
+        with urllib.request.urlopen(request) as response, open(audio_file_path, "wb") as file:
+            file.write(response.read())
 
-            return str(audio_file_path)
-
-        except Exception as e:
-            raise AudioGenerationError(f"Audio generation failed: {e}")
+        return str(audio_file_path)
 
 
 class ElevenLabsAudioService(AudioGenerationService):
     """Service for generating audio using ElevenLabs API."""
 
-    def __init__(self, eleven_labs_api_key: Optional[str] = None) -> None:
+    def __init__(self, eleven_labs_api_key: str | None = None) -> None:
         """Initialize the ElevenLabs audio service.
 
         Args:
@@ -136,10 +131,10 @@ class ElevenLabsAudioService(AudioGenerationService):
             available_voices = response.voices
 
             # Filter for voices that support Chinese
-            chinese_voices: List[Any] = []
+            chinese_voices: list[Any] = []
             for voice in available_voices:
                 # Handle voice.labels.languages which should be a list of strings
-                languages: List[str] = getattr(getattr(voice, "labels", {}), "languages", [])
+                languages: list[str] = getattr(getattr(voice, "labels", {}), "languages", [])
                 if any("chinese" in language.lower() for language in languages):
                     chinese_voices.append(voice)
 
@@ -147,7 +142,7 @@ class ElevenLabsAudioService(AudioGenerationService):
             if not chinese_voices:
                 for voice in available_voices:
                     # Handle voice.labels.descriptions which should be a list of strings
-                    descriptions: List[str] = getattr(getattr(voice, "labels", {}), "descriptions", [])
+                    descriptions: list[str] = getattr(getattr(voice, "labels", {}), "descriptions", [])
                     if any("multilingual" in description.lower() for description in descriptions):
                         chinese_voices.append(voice)
 
@@ -162,7 +157,7 @@ class ElevenLabsAudioService(AudioGenerationService):
             return str(chinese_voices[0].voice_id)
 
         except Exception as e:
-            raise AudioGenerationError(f"Failed to get voice: {e}")
+            raise AudioGenerationError(f"Failed to get voice: {e}") from e
 
     def generate_audio_file(self, text: str) -> str:
         """Generate audio for the given text using ElevenLabs.
@@ -202,7 +197,7 @@ class ElevenLabsAudioService(AudioGenerationService):
             return str(audio_file_path)
 
         except Exception as e:
-            raise AudioGenerationError(f"Audio generation failed: {e}")
+            raise AudioGenerationError(f"Audio generation failed: {e}") from e
 
 
 def create_audio_service(provider: str = "google-translate", **kwargs: Any) -> AudioGenerationService:

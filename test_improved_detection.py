@@ -8,7 +8,6 @@ text files and see how the language detection works with different content.
 
 import argparse
 import sys
-from typing import Dict
 
 from contextual_langdetect import contextual_detect
 from rich.console import Console
@@ -24,7 +23,7 @@ def process_file_with_context(file_path: str) -> None:
         file_path: Path to the text file to analyze
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             lines = [line.strip() for line in f if line.strip()]
     except Exception as e:
         console.print(f"[bold red]Error reading file:[/bold red] {e}")
@@ -47,9 +46,9 @@ def process_file_with_context(file_path: str) -> None:
     line_table.add_column("Status", style="yellow")
 
     # Process results for display
-    language_counts: Dict[str, int] = {}
+    language_counts: dict[str, int] = {}
 
-    for i, (line, language) in enumerate(zip(lines, detected_languages), 1):
+    for i, (line, language) in enumerate(zip(lines, detected_languages, strict=False), 1):
         if not language:
             # Skip if no language was detected
             console.print(f"[bold red]No language detected for line {i}:[/bold red] {line}")

@@ -1,8 +1,7 @@
 """Language detection and processing for add2anki."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Sequence
 
 from contextual_langdetect import contextual_detect
 
@@ -29,8 +28,8 @@ class LanguageState:
     """State for language detection in REPL mode."""
 
     detected_language: Language | None = None
-    language_history: Dict[Language, int] | None = None
-    primary_languages: List[Language] | None = None
+    language_history: dict[Language, int] | None = None
+    primary_languages: list[Language] | None = None
 
     def __post_init__(self) -> None:
         """Initialize language history."""
@@ -208,7 +207,7 @@ def process_batch(
         )
 
     # Process each sentence with its detected language
-    for sentence, language in zip(valid_sentences, detected_languages):
+    for sentence, language in zip(valid_sentences, detected_languages, strict=False):
         # Skip sentences where language could not be detected
         if not language:
             continue

@@ -63,117 +63,119 @@ def test_process_sentence() -> None:
     mock_config = MagicMock()
     mock_config.note_type = "Chinese Basic"
 
-    with patch("add2anki.cli.TranslationService", return_value=mock_translation_service):
-        with patch("add2anki.cli.create_audio_service", return_value=mock_audio_service):
-            with patch("add2anki.cli.load_config", return_value=mock_config):
-                with patch("add2anki.cli.save_config"):
-                    with patch(
-                        "add2anki.cli.find_suitable_note_types",
-                        return_value=[
-                            (
-                                "Chinese Basic",
-                                {
-                                    "hanzi_field": "Chinese",
-                                    "pinyin_field": "Pronunciation",
-                                    "english_field": "Translation",
-                                },
-                            )
-                        ],
-                    ):
-                        with patch("contextual_langdetect.contextual_detect") as mock_detect:
-                            # Mock language detection to return English
-                            mock_detect.return_value = ["en"]
-                            # Test 1: Call the function with default tags (None)
-                            process_sentence(
-                                "Hello",
-                                "Test Deck",
-                                mock_anki_client,
-                                audio_provider="google-translate",
-                                style="conversational",
-                            )
+    with (
+        patch("add2anki.cli.TranslationService", return_value=mock_translation_service),
+        patch("add2anki.cli.create_audio_service", return_value=mock_audio_service),
+        patch("add2anki.cli.load_config", return_value=mock_config),
+        patch("add2anki.cli.save_config"),
+        patch(
+            "add2anki.cli.find_suitable_note_types",
+            return_value=[
+                (
+                    "Chinese Basic",
+                    {
+                        "hanzi_field": "Chinese",
+                        "pinyin_field": "Pronunciation",
+                        "english_field": "Translation",
+                    },
+                )
+            ],
+        ),
+        patch("contextual_langdetect.contextual_detect") as mock_detect,
+    ):
+        # Mock language detection to return English
+        mock_detect.return_value = ["en"]
+        # Test 1: Call the function with default tags (None)
+        process_sentence(
+            "Hello",
+            "Test Deck",
+            mock_anki_client,
+            audio_provider="google-translate",
+            style="conversational",
+        )
 
-                            # Verify the calls
-                            mock_translation_service.translate.assert_called_with("Hello", style="conversational")
-                            mock_audio_service.generate_audio_file.assert_called_with("u4f60u597d")
+        # Verify the calls
+        mock_translation_service.translate.assert_called_with("Hello", style="conversational")
+        mock_audio_service.generate_audio_file.assert_called_with("u4f60u597d")
 
-                            # Default tag should be ["add2anki"]
-                            mock_anki_client.add_note.assert_called_with(
-                                deck_name="Test Deck",
-                                note_type="Chinese Basic",
-                                fields={
-                                    "Chinese": "u4f60u597d",
-                                    "Pronunciation": "nu01d0 hu01ceo",
-                                    "Translation": "Hello",
-                                },
-                                audio={
-                                    "path": "/tmp/audio.mp3",
-                                    "filename": "audio.mp3",
-                                    "fields": ["Sound"],
-                                },
-                                tags=["add2anki"],
-                            )
+        # Default tag should be ["add2anki"]
+        mock_anki_client.add_note.assert_called_with(
+            deck_name="Test Deck",
+            note_type="Chinese Basic",
+            fields={
+                "Chinese": "u4f60u597d",
+                "Pronunciation": "nu01d0 hu01ceo",
+                "Translation": "Hello",
+            },
+            audio={
+                "path": "/tmp/audio.mp3",
+                "filename": "audio.mp3",
+                "fields": ["Sound"],
+            },
+            tags=["add2anki"],
+        )
 
-                            # Reset mocks for next test
-                            mock_anki_client.reset_mock()
-                            mock_translation_service.reset_mock()
-                            mock_audio_service.reset_mock()
+        # Reset mocks for next test
+        mock_anki_client.reset_mock()
+        mock_translation_service.reset_mock()
+        mock_audio_service.reset_mock()
 
-                            # Test 2: Call the function with custom tags
-                            process_sentence(
-                                "Hello",
-                                "Test Deck",
-                                mock_anki_client,
-                                audio_provider="google-translate",
-                                style="conversational",
-                                tags="custom,tags",
-                            )
+        # Test 2: Call the function with custom tags
+        process_sentence(
+            "Hello",
+            "Test Deck",
+            mock_anki_client,
+            audio_provider="google-translate",
+            style="conversational",
+            tags="custom,tags",
+        )
 
-                            # Custom tags should be ["custom", "tags"]
-                            mock_anki_client.add_note.assert_called_with(
-                                deck_name="Test Deck",
-                                note_type="Chinese Basic",
-                                fields={
-                                    "Chinese": "u4f60u597d",
-                                    "Pronunciation": "nu01d0 hu01ceo",
-                                    "Translation": "Hello",
-                                },
-                                audio={
-                                    "path": "/tmp/audio.mp3",
-                                    "filename": "audio.mp3",
-                                    "fields": ["Sound"],
-                                },
-                                tags=["custom", "tags"],
-                            )
+        # Custom tags should be ["custom", "tags"]
+        mock_anki_client.add_note.assert_called_with(
+            deck_name="Test Deck",
+            note_type="Chinese Basic",
+            fields={
+                "Chinese": "u4f60u597d",
+                "Pronunciation": "nu01d0 hu01ceo",
+                "Translation": "Hello",
+            },
+            audio={
+                "path": "/tmp/audio.mp3",
+                "filename": "audio.mp3",
+                "fields": ["Sound"],
+            },
+            tags=["custom", "tags"],
+        )
 
-                            # Reset mocks for next test
-                            mock_anki_client.reset_mock()
+        # Reset mocks for next test
+        mock_anki_client.reset_mock()
 
-                            # Test 3: Call the function with empty tags
-                            process_sentence(
-                                "Hello",
-                                "Test Deck",
-                                mock_anki_client,
-                                audio_provider="google-translate",
-                                style="conversational",
-                                tags="",
-                            )
+        # Test 3: Call the function with empty tags
+        process_sentence(
+            "Hello",
+            "Test Deck",
+            mock_anki_client,
+            audio_provider="google-translate",
+            style="conversational",
+            tags="",
+        )
 
-                            # Empty tags should result in empty list
-                            mock_anki_client.add_note.assert_called_with(
-                                deck_name="Test Deck",
-                                note_type="Chinese Basic",
-                                fields={
-                                    "Chinese": "u4f60u597d",
-                                    "Pronunciation": "nu01d0 hu01ceo",
-                                    "Translation": "Hello",
-                                },
-                                audio={
-                                    "path": "/tmp/audio.mp3",
-                                    "filename": "audio.mp3",
-                                    "fields": ["Sound"],
-                                },
-                                tags=[],
-                            )
+        # Empty tags should result in empty list
+        mock_anki_client.add_note.assert_called_with(
+            deck_name="Test Deck",
+            note_type="Chinese Basic",
+            fields={
+                "Chinese": "u4f60u597d",
+                "Pronunciation": "nu01d0 hu01ceo",
+                "Translation": "Hello",
+            },
+            audio={
+                "path": "/tmp/audio.mp3",
+                "filename": "audio.mp3",
+                "fields": ["Sound"],
+            },
+            tags=[],
+        )
 
 
 def test_main_no_sentences_no_file() -> None:
@@ -181,26 +183,28 @@ def test_main_no_sentences_no_file() -> None:
     runner = CliRunner()
 
     # Mock environment and Anki checks to pass
-    with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
-        with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
-            mock_anki_client = MagicMock()
-            mock_anki_client.check_connection.return_value = (True, "Connected")
-            # Mock get_deck_names to return a list of decks
-            mock_anki_client.get_deck_names.return_value = ["Default"]
-            mock_anki_client_class.return_value = mock_anki_client
+    with (
+        patch("add2anki.cli.check_environment", return_value=(True, "All good")),
+        patch("add2anki.cli.AnkiClient") as mock_anki_client_class,
+    ):
+        mock_anki_client = MagicMock()
+        mock_anki_client.check_connection.return_value = (True, "Connected")
+        # Mock get_deck_names to return a list of decks
+        mock_anki_client.get_deck_names.return_value = ["Default"]
+        mock_anki_client_class.return_value = mock_anki_client
 
-            # Mock config
-            mock_config = MagicMock()
-            mock_config.deck_name = None
-            mock_config.note_type = "Basic"
+        # Mock config
+        mock_config = MagicMock()
+        mock_config.deck_name = None
+        mock_config.note_type = "Basic"
 
-            with patch("add2anki.cli.load_config", return_value=mock_config):
-                # Mock save_config to avoid file operations
-                with patch("add2anki.cli.save_config"):
-                    # Mock Prompt.ask to simulate user input and then exit
-                    with patch("rich.prompt.Prompt.ask", side_effect=["exit"]):
-                        result = runner.invoke(main, [])
-                        assert result.exit_code == 0
+        with (
+            patch("add2anki.cli.load_config", return_value=mock_config),
+            patch("add2anki.cli.save_config"),
+            patch("rich.prompt.Prompt.ask", side_effect=["exit"]),
+        ):
+            result = runner.invoke(main, [])
+            assert result.exit_code == 0
 
 
 def test_main_with_sentences() -> None:
@@ -208,42 +212,44 @@ def test_main_with_sentences() -> None:
     runner = CliRunner()
 
     # Mock environment and Anki checks to pass
-    with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
-        with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
-            mock_anki_client = MagicMock()
-            mock_anki_client.check_connection.return_value = (True, "Connected")
-            mock_anki_client_class.return_value = mock_anki_client
+    with (
+        patch("add2anki.cli.check_environment", return_value=(True, "All good")),
+        patch("add2anki.cli.AnkiClient") as mock_anki_client_class,
+    ):
+        mock_anki_client = MagicMock()
+        mock_anki_client.check_connection.return_value = (True, "Connected")
+        mock_anki_client_class.return_value = mock_anki_client
 
-            # Mock load_config to return a config with deck_name set to "Smalltalk"
-            mock_config = MagicMock()
-            mock_config.deck_name = "Smalltalk"
-            with patch("add2anki.cli.load_config", return_value=mock_config):
-                # Mock find_suitable_note_types
-                with patch("add2anki.cli.find_suitable_note_types", return_value=["Chinese Basic"]):
-                    # Mock process_sentence
-                    with patch("add2anki.cli.process_sentence") as mock_process_sentence:
-                        with patch("contextual_langdetect.contextual_detect") as mock_detect:
-                            # Mock language detection to return English
-                            mock_detect.return_value = ["en"]
-                            result = runner.invoke(main, ["Hello", "world", "--no-launch-anki"])
-                            assert result.exit_code == 0
+        # Mock load_config to return a config with deck_name set to "Smalltalk"
+        mock_config = MagicMock()
+        mock_config.deck_name = "Smalltalk"
+        with (
+            patch("add2anki.cli.load_config", return_value=mock_config),
+            patch("add2anki.cli.find_suitable_note_types", return_value=["Chinese Basic"]),
+            patch("add2anki.cli.process_sentence") as mock_process_sentence,
+            patch("contextual_langdetect.contextual_detect") as mock_detect,
+        ):
+            # Mock language detection to return English
+            mock_detect.return_value = ["en"]
+            result = runner.invoke(main, ["Hello", "world", "--no-launch-anki"])
+            assert result.exit_code == 0
 
-                            # Looking at the CLI implementation, if all arguments have no spaces,
-                            # they are joined together into a single sentence, and 'conversational' is the default style
-                            mock_process_sentence.assert_called_once_with(
-                                "Hello world",
-                                "Smalltalk",
-                                mock_anki_client,
-                                "google-translate",
-                                "conversational",
-                                None,
-                                False,
-                                False,
-                                False,
-                                None,  # tags parameter
-                                None,  # source_lang parameter
-                                None,  # target_lang parameter
-                            )
+            # Looking at the CLI implementation, if all arguments have no spaces,
+            # they are joined together into a single sentence, and 'conversational' is the default style
+            mock_process_sentence.assert_called_once_with(
+                "Hello world",
+                "Smalltalk",
+                mock_anki_client,
+                "google-translate",
+                "conversational",
+                None,
+                False,
+                False,
+                False,
+                None,  # tags parameter
+                None,  # source_lang parameter
+                None,  # target_lang parameter
+            )
 
 
 def test_main_with_file() -> None:
@@ -258,46 +264,47 @@ def test_main_with_file() -> None:
             f.write("World,世界,shi jie,World\n")
 
         # Mock environment and Anki checks to pass
-        with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
-            # Mock AnkiClient to verify actual calls to Anki API
-            with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
-                mock_anki_client = MagicMock()
-                mock_anki_client.check_connection.return_value = (True, "Connected")
-                mock_anki_client.get_deck_names.return_value = ["Smalltalk", "Default"]
-                mock_anki_client.get_note_types.return_value = ["Chinese Basic"]
-                mock_anki_client.get_field_names.return_value = ["Chinese", "Pronunciation", "Translation", "Sound"]
-                mock_anki_client.get_model_sort_field.return_value = "Chinese"  # Mock required field
-                mock_anki_client.get_first_field.return_value = "Chinese"  # Mock first field as fallback
+        with (
+            patch("add2anki.cli.check_environment", return_value=(True, "All good")),
+            patch("add2anki.cli.AnkiClient") as mock_anki_client_class,
+        ):
+            mock_anki_client = MagicMock()
+            mock_anki_client.check_connection.return_value = (True, "Connected")
+            mock_anki_client.get_deck_names.return_value = ["Smalltalk", "Default"]
+            mock_anki_client.get_note_types.return_value = ["Chinese Basic"]
+            mock_anki_client.get_field_names.return_value = ["Chinese", "Pronunciation", "Translation", "Sound"]
+            mock_anki_client.get_model_sort_field.return_value = "Chinese"  # Mock required field
+            mock_anki_client.get_first_field.return_value = "Chinese"  # Mock first field as fallback
 
-                # Setup return value for add_note and make sure audio is properly handled
-                def mock_add_note(
-                    deck_name: str,
-                    note_type: str,
-                    fields: dict[str, str],
-                    audio: dict[str, str | list[str]] | None = None,
-                    tags: list[str] | None = None,
-                ) -> int:
-                    # Replace MagicMock objects with simple dictionaries to avoid serialization issues
-                    if audio is not None and isinstance(audio, MagicMock):
-                        audio = {"path": "/tmp/audio.mp3", "filename": "audio.mp3", "fields": ["Sound"]}
-                    return 12345
+            # Setup return value for add_note and make sure audio is properly handled
+            def mock_add_note(
+                deck_name: str,
+                note_type: str,
+                fields: dict[str, str],
+                audio: dict[str, str | list[str]] | None = None,
+                tags: list[str] | None = None,
+            ) -> int:
+                # Replace MagicMock objects with simple dictionaries to avoid serialization issues
+                if audio is not None and isinstance(audio, MagicMock):
+                    audio = {"path": "/tmp/audio.mp3", "filename": "audio.mp3", "fields": ["Sound"]}
+                return 12345
 
-                mock_anki_client.add_note.side_effect = mock_add_note
-                mock_anki_client_class.return_value = mock_anki_client
+            mock_anki_client.add_note.side_effect = mock_add_note
+            mock_anki_client_class.return_value = mock_anki_client
 
-                # Mock config that will be loaded
-                mock_config = MagicMock()
-                mock_config.deck_name = "Smalltalk"
-                mock_config.note_type = "Chinese Basic"
-                with patch("add2anki.cli.load_config", return_value=mock_config):
-                    # Run the CLI command
-                    result = runner.invoke(main, ["--file", "sentences.csv", "--no-launch-anki"])
+            # Mock config that will be loaded
+            mock_config = MagicMock()
+            mock_config.deck_name = "Smalltalk"
+            mock_config.note_type = "Chinese Basic"
+            with patch("add2anki.cli.load_config", return_value=mock_config):
+                # Run the CLI command
+                result = runner.invoke(main, ["--file", "sentences.csv", "--no-launch-anki"])
 
-                    # Skip exit code check due to issues with MagicMock serialization in test environment
-                    # assert result.exit_code == 0
+                # Skip exit code check due to issues with MagicMock serialization in test environment
+                # assert result.exit_code == 0
 
-                    # Just check that it's trying to process the file
-                    assert "Read" in result.output
+                # Just check that it's trying to process the file
+                assert "Read" in result.output
 
 
 def test_is_chinese_learning_table() -> None:
@@ -326,26 +333,29 @@ def test_main_with_csv_file() -> None:
             f.write("谢谢,xie xie,Thank you,polite\n")
 
         # Mock environment and Anki checks to pass
-        with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
-            with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
-                mock_anki_client = MagicMock()
-                mock_anki_client.check_connection.return_value = (True, "Connected")
-                mock_anki_client_class.return_value = mock_anki_client
+        with (
+            patch("add2anki.cli.check_environment", return_value=(True, "All good")),
+            patch("add2anki.cli.AnkiClient") as mock_anki_client_class,
+        ):
+            mock_anki_client = MagicMock()
+            mock_anki_client.check_connection.return_value = (True, "Connected")
+            mock_anki_client_class.return_value = mock_anki_client
 
-                # Mock load_config to return a config with deck_name set to "Chinese"
-                mock_config = MagicMock()
-                mock_config.deck_name = "Chinese"
-                with patch("add2anki.cli.load_config", return_value=mock_config):
-                    # Mock process_structured_file
-                    with patch("add2anki.cli.process_structured_file") as mock_process_structured_file:
-                        result = runner.invoke(main, ["--file", "vocab.csv"])
-                        assert result.exit_code == 0
+            # Mock load_config to return a config with deck_name set to "Chinese"
+            mock_config = MagicMock()
+            mock_config.deck_name = "Chinese"
+            with (
+                patch("add2anki.cli.load_config", return_value=mock_config),
+                patch("add2anki.cli.process_structured_file") as mock_process_structured_file,
+            ):
+                result = runner.invoke(main, ["--file", "vocab.csv"])
+                assert result.exit_code == 0
 
-                        # Check that process_structured_file was called with the CSV file
-                        mock_process_structured_file.assert_called_once()
-                        call_args = mock_process_structured_file.call_args[0]
-                        assert call_args[0] == "vocab.csv"  # file path
-                        assert call_args[1] == "Chinese"  # deck name
+                # Check that process_structured_file was called with the CSV file
+                mock_process_structured_file.assert_called_once()
+                call_args = mock_process_structured_file.call_args[0]
+                assert call_args[0] == "vocab.csv"  # file path
+                assert call_args[1] == "Chinese"  # deck name
 
 
 def test_main_with_tags() -> None:
@@ -353,51 +363,55 @@ def test_main_with_tags() -> None:
     runner = CliRunner()
 
     # Mock environment and Anki checks to pass
-    with patch("add2anki.cli.check_environment", return_value=(True, "All good")):
-        with patch("add2anki.cli.AnkiClient") as mock_anki_client_class:
-            mock_anki_client = MagicMock()
-            mock_anki_client.check_connection.return_value = (True, "Connected")
-            mock_anki_client.get_deck_names.return_value = ["Smalltalk", "Default"]
-            mock_anki_client.get_note_types.return_value = ["Chinese Basic"]
-            mock_anki_client.get_field_names.return_value = ["Chinese", "Pronunciation", "Translation", "Sound"]
+    with (
+        patch("add2anki.cli.check_environment", return_value=(True, "All good")),
+        patch("add2anki.cli.AnkiClient") as mock_anki_client_class,
+    ):
+        mock_anki_client = MagicMock()
+        mock_anki_client.check_connection.return_value = (True, "Connected")
+        mock_anki_client.get_deck_names.return_value = ["Smalltalk", "Default"]
+        mock_anki_client.get_note_types.return_value = ["Chinese Basic"]
+        mock_anki_client.get_field_names.return_value = ["Chinese", "Pronunciation", "Translation", "Sound"]
 
-            # Mock translation service to return expected values
-            with patch("add2anki.cli.TranslationService") as mock_translation_service_class:
-                mock_translation = MagicMock()
-                mock_translation.hanzi = "你好"
-                mock_translation.pinyin = "ni hao"
-                mock_translation.english = "Hello"
+        # Mock translation service to return expected values
+        with patch("add2anki.cli.TranslationService") as mock_translation_service_class:
+            mock_translation = MagicMock()
+            mock_translation.hanzi = "你好"
+            mock_translation.pinyin = "ni hao"
+            mock_translation.english = "Hello"
 
-                mock_translation_service = MagicMock()
-                mock_translation_service.translate.return_value = mock_translation
-                mock_translation_service_class.return_value = mock_translation_service
+            mock_translation_service = MagicMock()
+            mock_translation_service.translate.return_value = mock_translation
+            mock_translation_service_class.return_value = mock_translation_service
 
-                # Mock audio service
-                with patch("add2anki.cli.create_audio_service") as mock_audio_service_class:
-                    mock_audio_service = MagicMock()
-                    mock_audio_service.generate_audio_file.return_value = "/tmp/audio.mp3"
-                    mock_audio_service_class.return_value = mock_audio_service
+            # Mock audio service
+            with patch("add2anki.cli.create_audio_service") as mock_audio_service_class:
+                mock_audio_service = MagicMock()
+                mock_audio_service.generate_audio_file.return_value = "/tmp/audio.mp3"
+                mock_audio_service_class.return_value = mock_audio_service
 
-                    # Setup return value for add_note
-                    mock_anki_client.add_note.return_value = 12345
-                    mock_anki_client_class.return_value = mock_anki_client
+                # Setup return value for add_note
+                mock_anki_client.add_note.return_value = 12345
+                mock_anki_client_class.return_value = mock_anki_client
 
-                    # Mock config that will be loaded
-                    mock_config = MagicMock()
-                    mock_config.deck_name = "Smalltalk"
-                    mock_config.note_type = "Chinese Basic"
-                    with patch("add2anki.cli.load_config", return_value=mock_config):
-                        with patch("contextual_langdetect.contextual_detect") as mock_detect:
-                            # Mock language detection to return English
-                            mock_detect.return_value = ["en"]
+                # Mock config that will be loaded
+                mock_config = MagicMock()
+                mock_config.deck_name = "Smalltalk"
+                mock_config.note_type = "Chinese Basic"
+                with (
+                    patch("add2anki.cli.load_config", return_value=mock_config),
+                    patch("contextual_langdetect.contextual_detect") as mock_detect,
+                ):
+                    # Mock language detection to return English
+                    mock_detect.return_value = ["en"]
 
-                            # Run the CLI command with specific tags
-                            result = runner.invoke(main, ["--tags", "test,tag", "Hello", "--no-launch-anki"])
+                    # Run the CLI command with specific tags
+                    result = runner.invoke(main, ["--tags", "test,tag", "Hello", "--no-launch-anki"])
 
-                            # Check execution was successful
-                            assert result.exit_code == 0
+                    # Check execution was successful
+                    assert result.exit_code == 0
 
-                            # Check that add_note was called with the right tags
-                            mock_anki_client.add_note.assert_called_once()
-                            call_args = mock_anki_client.add_note.call_args[1]
-                            assert call_args["tags"] == ["test", "tag"]
+                    # Check that add_note was called with the right tags
+                    mock_anki_client.add_note.assert_called_once()
+                    call_args = mock_anki_client.add_note.call_args[1]
+                    assert call_args["tags"] == ["test", "tag"]
