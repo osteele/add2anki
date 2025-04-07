@@ -1544,6 +1544,7 @@ def main(
     """Add language learning cards to Anki.
 
     SENTENCES are the sentences to add. If not provided, will read from FILE.
+    If a SENTENCE appears to be a file path and exists, it will be processed as a file.
     """
     if debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -1581,6 +1582,11 @@ def main(
 
     # Cast style to StyleType
     style_type = cast(StyleType, style)
+
+    # Check if a single sentence argument is actually a file path
+    if len(sentences) == 1 and os.path.exists(sentences[0]) and not file:
+        file = sentences[0]
+        sentences = ()
 
     # Process sentences
     if sentences:
