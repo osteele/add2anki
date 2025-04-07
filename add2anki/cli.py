@@ -669,7 +669,8 @@ def process_structured_file(
                         audio_path = audio_service.generate_audio_file(hanzi_text)
 
                         # Prepare audio field
-                        audio_config = create_audio_config(audio_path, field_names, [sound_field])
+                        sound_field_list = [sound_field] if sound_field in field_names else ["Sound"]
+                        audio_config = create_audio_config(str(audio_path), field_names, sound_field_list)
                     else:
                         audio_config = None
                 else:
@@ -708,7 +709,11 @@ def process_structured_file(
                                     fields[sound_field] = audio_value
                                     audio_config = None  # Don't need audio config since we're using the field directly
                                 else:
-                                    audio_config = create_audio_config(str(audio_path), field_names, [sound_field])
+                                    audio_config = create_audio_config(
+                                        str(audio_path),
+                                        field_names,
+                                        [sound_field] if sound_field in field_names else ["Sound"],
+                                    )
                                 break
 
             # Show preview in dry run mode
@@ -1095,6 +1100,7 @@ def process_batch(
                 fields[field] = sentence
             # Sound/audio field
             elif ("sound" in field.lower() or "audio" in field.lower()) and audio_path:
+                audio_url = f"[sound:{os.path.basename(audio_path)}]"
                 fields[field] = audio_url
 
         # Add note to Anki
@@ -1105,8 +1111,8 @@ def process_batch(
                     note_type=note_type,
                     fields=fields,
                     audio={
-                        "path": str(audio_path),
-                        "filename": os.path.basename(audio_path),
+                        "path": str(audio_path) if audio_path else "",
+                        "filename": os.path.basename(audio_path) if audio_path else "",
                         "fields": [
                             field for field in field_names if "sound" in field.lower() or "audio" in field.lower()
                         ],
@@ -1414,8 +1420,8 @@ def process_srt_file(
                         note_type=selected_note_type or "Chinese English -> Hanzi",
                         fields=fields,
                         audio={
-                            "path": str(audio_path),
-                            "filename": os.path.basename(audio_path),
+                            "path": str(audio_path) if audio_path is not None else "",
+                            "filename": os.path.basename(audio_path) if audio_path is not None else "",
                             "fields": [
                                 field for field in field_names if "sound" in field.lower() or "audio" in field.lower()
                             ],
