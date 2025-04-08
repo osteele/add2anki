@@ -30,10 +30,14 @@ format:
 lint:
     uv run --dev ruff check add2anki tests
 
-# Publish to PyPI
+# Publish to PyPI and create a git tag
 publish: clean
     uv build
     uv publish
+    VERSION=$(python -c "import re; version_line = next(line for line in open('pyproject.toml') if 'version = ' in line); print(re.search('version = \"([^\"]+)\"', version_line).group(1))")
+    echo "Creating and pushing git tag: v$VERSION"
+    @git tag -s "v$VERSION" -m "v$VERSION"
+    @git push origin "v$VERSION"
 
 # Run the application
 run *ARGS:
