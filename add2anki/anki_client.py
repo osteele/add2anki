@@ -1,6 +1,7 @@
 """Client for interacting with the Anki Connect API."""
 
 import json
+import logging
 from typing import Any, cast
 
 import requests
@@ -263,16 +264,26 @@ class AnkiClient:
         Returns:
             The name of the sort field, or None if not available
         """
-        model_info = cast(dict[str, Any], self._request("modelGetJson", modelName=note_type))
-        sort_field_idx = cast(int, model_info.get("sortf", 0))  # Default to first field if not found
-        field_names: list[str] = self.get_field_names(note_type)
+        # Get field names first to ensure we have them for later use
+        field_names = self.get_field_names(note_type)
+        if not field_names:
+            return None
 
-        # Return the sort field if it exists in the field names
-        if field_names and 0 <= sort_field_idx < len(field_names):
-            return field_names[sort_field_idx]
+        # Try to get the sort field index from the model
+        try:
+            # First attempt to use modelGetJson which is the standard method
+            model_info = cast(dict[str, Any], self._request("modelGetJson", modelName=note_type))
+            sort_field_idx = cast(int, model_info.get("sortf", 0))  # Default to first field if not found
 
-        # Otherwise return None
-        return None
+            # Return the sort field if it exists in the field names
+            if 0 <= sort_field_idx < len(field_names):
+                return field_names[sort_field_idx]
+            return field_names[0] if field_names else None
+        except AnkiConnectError:
+            # If modelGetJson fails, fall back to using the first field
+            # This is a reasonable default as the first field is often the sort field
+            logging.warning("Could not determine model sort field, using first field as default")
+            return field_names[0] if field_names else None
 
     def get_first_field(self, note_type: str) -> str | None:
         """Get the first field of a note type, which is usually the required field.

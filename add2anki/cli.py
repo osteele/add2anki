@@ -280,21 +280,61 @@ def check_note_type_compatibility(
     Returns:
         A tuple of (is_compatible, error_message)
     """
-    field_names = anki_client.get_field_names(note_type)
-    required_field = get_required_field(anki_client, note_type)
+    try:
+        field_names = anki_client.get_field_names(note_type)
+        required_field = get_required_field(anki_client, note_type)
 
-    if required_field is None:
-        # If we can't determine the required field, assume it's compatible
+        if required_field is None:
+            # If we can't determine the required field, assume it's compatible
+            return True, None
+
+        # Create field mapping
+        field_mapping = map_csv_headers_to_anki_fields(headers, field_names)
+
+        # Check if the required field is mapped
+        if required_field not in field_mapping:
+            # Try to find similar column names to suggest
+            header_lower = [h.lower() for h in headers]
+            required_field_lower = required_field.lower()
+
+            # Check for common abbreviations or alternative names
+            alternatives = {
+                "english": ["en", "eng"],
+                "chinese": ["zh", "cn", "mandarin"],
+                "japanese": ["jp", "ja"],
+                "spanish": ["es", "sp"],
+                "french": ["fr"],
+                "german": ["de", "gr"],
+                # Add more mappings as needed
+            }
+
+            # Check if the required field has known alternatives
+            suggestions: list[str] = []
+            for full_name, abbrevs in alternatives.items():
+                if required_field_lower == full_name and any(abbr in header_lower for abbr in abbrevs):
+                    # Found an abbreviation in headers that matches the required field
+                    for abbr in abbrevs:
+                        if abbr in header_lower:
+                            idx = header_lower.index(abbr)
+                            suggestions.append(headers[idx])
+                elif required_field_lower in abbrevs and full_name.lower() in header_lower:
+                    # Found a full name in headers that matches the required field abbreviation
+                    idx = header_lower.index(full_name.lower())
+                    suggestions.append(headers[idx])
+
+            suggestion_text = ""
+            if suggestions:
+                suggestion_msg = ", ".join(suggestions)
+                suggestion_text = (
+                    f" Found similar columns: {suggestion_msg}. "
+                    f"Consider renaming these in your CSV or using a different note type."
+                )
+
+            return False, f"Required field '{required_field}' is not mapped to any CSV/TSV column.{suggestion_text}"
+
         return True, None
-
-    # Create field mapping
-    field_mapping = map_csv_headers_to_anki_fields(headers, field_names)
-
-    # Check if required field is mapped
-    if required_field not in field_mapping:
-        return False, f"Required field '{required_field}' has no matching column in the input data"
-
-    return True, None
+    except Exception as e:
+        return False, f"Error checking note type compatibility: {e!s}"
 
 
 def create_audio_config(
@@ -1289,7 +1329,7 @@ def process_srt_file(
 
                 if len(suitable_note_types) == 1:
                     # If there's only one suitable note type, use it
-                    selected_note_type = suitable_note_types[0][0]
+                    selected_note_type, _ = suitable_note_types[0]
                     console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
 
                     # Save only the note type in the configuration

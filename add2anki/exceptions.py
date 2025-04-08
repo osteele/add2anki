@@ -41,3 +41,9 @@ class LanguageDetectionError(Add2ankiError):
     """Exception raised when language detection fails or is ambiguous."""
 
     pass
+
+
+class CSVColumnMappingError(Add2ankiError):
+    """Exception raised when required columns are missing from a CSV file."""
+
+    pass
