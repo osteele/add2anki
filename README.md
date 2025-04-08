@@ -135,6 +135,11 @@ Services:
 - [openai](https://github.com/openai/openai-python) for transcription and translation
 - [elevenlabs](https://github.com/elevenlabs/elevenlabs-python) for audio generation
 
+## Related Projects
+
+- [audio2anki](https://github.com/osteele/audio2anki) - Tool to extract foreign language vocabulary from audio transcriptions and add to Anki
+- [contextual-langdetect](https://github.com/osteele/contextual-langdetect) - Context-aware language detection for multilingual text
+
 ## License
 
 MIT
