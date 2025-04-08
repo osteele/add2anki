@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "add2anki"
-version = "0.1.0"
+version = "0.1.1"
 description = "CLI tool to add language learning cards to Anki"
 authors = [{ name = "Oliver Steele", email = "steele@osteele.com" }]
 readme = "README.md"
@@ -59,3 +59,18 @@ indent-style = "space"
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "strict"
+
+[tool.hatch.build.targets.wheel]
+include = ["add2anki/", "docs/", "LICENSE", "README.md", "pyproject.toml"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "add2anki/",
+    "docs/",
+    "DEVELOPMENT.md",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+    "justfile",
+    "uv.lock",
+]
