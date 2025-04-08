@@ -5,7 +5,6 @@
 [![License](https://img.shields.io/github/license/osteele/add2anki.svg)](https://github.com/osteele/add2anki/blob/main/LICENSE)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![CI](https://github.com/osteele/add2anki/actions/workflows/ci.yml/badge.svg)](https://github.com/osteele/add2anki/actions/workflows/ci.yml)
-[![Ruff](https://github.com/osteele/add2anki/actions/workflows/ci.yml/badge.svg?label=lint)](https://github.com/osteele/add2anki/actions/workflows/ci.yml)
 
 A CLI tool to add language learning cards to Anki, with automatic translation and audio generation.
 
@@ -46,27 +45,32 @@ Learning Resources](https://osteele.com/topics/language-learning/).
 
 ## Installation
 
-You can install add2anki using either `uv` or `pipx`:
+You can install add2anki using either `uv`, or `pipx`, or `pip`:
 
 ### Using uv
 
-```bash
-# Install uv if you don't have it already
-# See [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/)
+1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it already.
 
-# Install add2anki
-uv tool install add2anki
-```
+2. Install `add2anki`:
+  ```bash
+  uv tool install add2anki
+  ```
 
 ### Using pipx
 
-```bash
-# Install pipx if you don't have it already
-pip install --user pipx
-pipx ensurepath
+1. [Install `pipx`](https://pipx.pypa.io/stable/installation/) if you don't have it already.
 
-# Install add2anki
-pipx install add2anki
+2. Install add2anki
+  ```bash
+  pipx install add2anki
+  ```
+
+### Using pip (not recommended)
+
+This method doesn't require a third-party tool, but it is not recommended as it will install add2anki in the current Python environment, which may cause conflicts with other packages.
+
+```bash
+pip install add2anki
 ```
 
 ## Environment Variables

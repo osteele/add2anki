@@ -819,8 +819,13 @@ def process_sentence(
         console.print(f"[blue]Target language: {target_lang}[/blue]")
 
     # Get note type
+    config = load_config()
     selected_note_type: str
-    if note_type:
+
+    # Handle special 'default' value
+    if note_type == "default" and config.note_type:
+        selected_note_type = config.note_type
+    elif note_type:
         selected_note_type = note_type
     else:
         note_types = find_suitable_note_types(anki_client)
@@ -832,13 +837,26 @@ def process_sentence(
             console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
         else:
             display_note_types(note_types, anki_client, is_chinese=True)
+
+            # Set default selection to the previously used note type if available
+            default_selection = 1
+            if config.note_type:
+                for i, (note_type_name, _) in enumerate(note_types, 1):
+                    if note_type_name == config.note_type:
+                        default_selection = i
+                        break
+
             selection = IntPrompt.ask(
                 "[bold blue]Select a note type[/bold blue]",
                 choices=[str(i) for i in range(1, len(note_types) + 1)],
-                default=1,
+                default=str(default_selection),
             )
-            note_type_tuple = note_types[selection - 1]
+            note_type_tuple = note_types[int(selection) - 1]
             selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
+
+        # Save the selected note type as the default for future use
+        config.note_type = selected_note_type
+        save_config(config)
 
     # Get field names
     field_names = anki_client.get_field_names(selected_note_type)
@@ -1580,24 +1598,38 @@ def main(
         anki_client.launch_anki()
 
     # Get deck name
+    config = load_config()
+    if deck == "default" and config.deck_name:
+        deck = config.deck_name
+
     if not deck:
-        config = load_config()
-        if not config.deck_name:
-            decks = anki_client.get_deck_names()
-            if not decks:
-                console.print("[red]Error: No decks found in Anki[/red]")
-                return
-            if len(decks) == 1:
-                deck = decks[0]
-            else:
-                console.print("\nAvailable decks:")
-                for i, d in enumerate(decks, 1):
-                    console.print(f"{i}. {d}")
-                deck = decks[IntPrompt.ask("Select deck", choices=[str(i) for i in range(1, len(decks) + 1)]) - 1]
-            config.deck_name = deck
-            save_config(config)
+        decks = anki_client.get_deck_names()
+        if not decks:
+            console.print("[red]Error: No decks found in Anki[/red]")
+            return
+        if len(decks) == 1:
+            deck = decks[0]
+            console.print(f"[bold green]Using deck:[/bold green] {deck}")
         else:
-            deck = config.deck_name
+            console.print("\nAvailable decks:")
+            for i, d in enumerate(decks, 1):
+                console.print(f"{i}. {d}")
+            # Set default selection to the previously used deck if available
+            default_selection = None
+            if config.deck_name:
+                try:
+                    default_selection = decks.index(config.deck_name) + 1
+                except ValueError:
+                    default_selection = 1
+            else:
+                default_selection = 1
+            selection = IntPrompt.ask(
+                "Select deck", choices=[str(i) for i in range(1, len(decks) + 1)], default=str(default_selection)
+            )
+            deck = decks[int(selection) - 1]
+        # Save the selected deck as the default for future use
+        config.deck_name = deck
+        save_config(config)
 
     # Cast style to StyleType
     style_type = cast(StyleType, style)

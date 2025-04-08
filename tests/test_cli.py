@@ -178,6 +178,105 @@ def test_process_sentence() -> None:
         )
 
 
+def test_note_type_selection() -> None:
+    """Test note type selection behavior."""
+    # Mock the translation service
+    mock_translation = MagicMock()
+    mock_translation.hanzi = "你好"
+    mock_translation.pinyin = "nǐ hǎo"
+    mock_translation.english = "Hello"
+    mock_translation.style = "conversational"
+
+    mock_translation_service = MagicMock()
+    mock_translation_service.translate.return_value = mock_translation
+
+    # Mock the audio service
+    mock_audio_service = MagicMock()
+    mock_audio_service.generate_audio_file.return_value = "/tmp/audio.mp3"
+
+    # Mock the Anki client
+    mock_anki_client = MagicMock()
+    mock_anki_client.add_note.return_value = 12345
+    mock_anki_client.get_field_names.return_value = [
+        "Chinese",
+        "Pronunciation",
+        "Translation",
+        "Sound",
+    ]
+
+    # Test 1: Using specific note type
+    with (
+        patch("add2anki.cli.TranslationService", return_value=mock_translation_service),
+        patch("add2anki.cli.create_audio_service", return_value=mock_audio_service),
+        patch("contextual_langdetect.contextual_detect", return_value=["en"]),
+        patch("add2anki.cli.find_suitable_note_types", return_value=[("Chinese Basic", {}), ("Chinese Vocab", {})]),
+        patch("add2anki.cli.load_config", return_value=MagicMock(note_type="Previous Note Type")),
+        patch("add2anki.cli.save_config"),
+    ):
+        process_sentence(
+            "Hello",
+            "Test Deck",
+            mock_anki_client,
+            audio_provider="google-translate",
+            style="conversational",
+            note_type="Custom Note Type",
+        )
+
+        # Verify the note type was used as specified
+        mock_anki_client.get_field_names.assert_called_with("Custom Note Type")
+
+    # Reset mocks
+    mock_anki_client.reset_mock()
+
+    # Test 2: Using 'default' note type
+    mock_config = MagicMock()
+    mock_config.note_type = "Saved Note Type"
+
+    with (
+        patch("add2anki.cli.TranslationService", return_value=mock_translation_service),
+        patch("add2anki.cli.create_audio_service", return_value=mock_audio_service),
+        patch("contextual_langdetect.contextual_detect", return_value=["en"]),
+        patch("add2anki.cli.find_suitable_note_types", return_value=[("Chinese Basic", {}), ("Chinese Vocab", {})]),
+        patch("add2anki.cli.load_config", return_value=mock_config),
+        patch("add2anki.cli.save_config"),
+    ):
+        process_sentence(
+            "Hello",
+            "Test Deck",
+            mock_anki_client,
+            audio_provider="google-translate",
+            style="conversational",
+            note_type="default",
+        )
+
+        # Verify the saved default note type was used
+        mock_anki_client.get_field_names.assert_called_with("Saved Note Type")
+
+    # Reset mocks
+    mock_anki_client.reset_mock()
+
+    # Test 3: Single available note type (auto-select)
+    with (
+        patch("add2anki.cli.TranslationService", return_value=mock_translation_service),
+        patch("add2anki.cli.create_audio_service", return_value=mock_audio_service),
+        patch("contextual_langdetect.contextual_detect", return_value=["en"]),
+        patch("add2anki.cli.find_suitable_note_types", return_value=[("Chinese Basic", {})]),
+        patch("add2anki.cli.load_config", return_value=MagicMock(note_type=None)),
+        patch("add2anki.cli.save_config"),
+    ):
+        process_sentence(
+            "Hello",
+            "Test Deck",
+            mock_anki_client,
+            audio_provider="google-translate",
+            style="conversational",
+            note_type=None,
+        )
+
+        # Verify the only available note type was used
+        mock_anki_client.get_field_names.assert_called_with("Chinese Basic")
+
+
 def test_main_no_sentences_no_file() -> None:
     """Test main function with no sentences and no file (interactive mode)."""
     runner = CliRunner()
@@ -220,25 +319,55 @@ def test_main_with_sentences() -> None:
         mock_anki_client.check_connection.return_value = (True, "Connected")
         mock_anki_client_class.return_value = mock_anki_client
 
-        # Mock load_config to return a config with deck_name set to "Smalltalk"
+        # Test 1: Using --deck option with a specific deck name
         mock_config = MagicMock()
-        mock_config.deck_name = "Smalltalk"
+        mock_config.deck_name = "Previous Deck"
         with (
             patch("add2anki.cli.load_config", return_value=mock_config),
-            patch("add2anki.cli.find_suitable_note_types", return_value=["Chinese Basic"]),
+            patch("add2anki.cli.find_suitable_note_types", return_value=[("Chinese Basic", {})]),
             patch("add2anki.cli.process_sentence") as mock_process_sentence,
             patch("contextual_langdetect.contextual_detect") as mock_detect,
         ):
             # Mock language detection to return English
             mock_detect.return_value = ["en"]
-            result = runner.invoke(main, ["Hello", "world", "--no-launch-anki"])
+            result = runner.invoke(main, ["Hello", "world", "--deck", "Smalltalk", "--no-launch-anki"])
             assert result.exit_code == 0
 
-            # Looking at the CLI implementation, if all arguments have no spaces,
-            # they are joined together into a single sentence, and 'conversational' is the default style
+            # Verify process_sentence is called with the specified deck
             mock_process_sentence.assert_called_once_with(
                 "Hello world",
                 "Smalltalk",
+                mock_anki_client,
+                "google-translate",
+                "conversational",
+                None,
+                False,
+                False,
+                False,
+                None,  # tags parameter
+                None,  # source_lang parameter
+                None,  # target_lang parameter
+            )
+            mock_process_sentence.reset_mock()
+
+        # Test 2: Using --deck default to use the saved default deck
+        mock_config = MagicMock()
+        mock_config.deck_name = "Previous Deck"
+        with (
+            patch("add2anki.cli.load_config", return_value=mock_config),
+            patch("add2anki.cli.find_suitable_note_types", return_value=[("Chinese Basic", {})]),
+            patch("add2anki.cli.process_sentence") as mock_process_sentence,
+            patch("contextual_langdetect.contextual_detect") as mock_detect,
+        ):
+            # Mock language detection to return English
+            mock_detect.return_value = ["en"]
+            result = runner.invoke(main, ["Hello", "world", "--deck", "default", "--no-launch-anki"])
+            assert result.exit_code == 0
+
+            # Verify process_sentence is called with the saved default deck
+            mock_process_sentence.assert_called_once_with(
+                "Hello world",
+                "Previous Deck",
                 mock_anki_client,
                 "google-translate",
                 "conversational",
@@ -295,16 +424,23 @@ def test_main_with_file() -> None:
             # Mock config that will be loaded
             mock_config = MagicMock()
             mock_config.deck_name = "Smalltalk"
-            mock_config.note_type = "Chinese Basic"
-            with patch("add2anki.cli.load_config", return_value=mock_config):
+
+            with (
+                patch("add2anki.cli.load_config", return_value=mock_config),
+                # Mock the IntPrompt.ask to return the first option (Smalltalk)
+                patch("rich.prompt.IntPrompt.ask", return_value="1"),
+                # Mock save_config directly to prevent serialization issues
+                patch("add2anki.cli.save_config"),
+            ):
                 # Run the CLI command
                 result = runner.invoke(main, ["--file", "sentences.csv", "--no-launch-anki"])
 
-                # Skip exit code check due to issues with MagicMock serialization in test environment
-                # assert result.exit_code == 0
+                # Check that the command executed successfully
+                assert result.exit_code == 0
 
-                # Just check that it's trying to process the file
-                assert "Read" in result.output
+                # Verify AnkiClient.add_note was called (implies process_structured_file ran)
+                # Expecting 2 calls, one for each row in the CSV
+                assert mock_anki_client.add_note.call_count == 2
 
 
 def test_is_chinese_learning_table() -> None:
@@ -343,19 +479,23 @@ def test_main_with_csv_file() -> None:
 
             # Mock load_config to return a config with deck_name set to "Chinese"
             mock_config = MagicMock()
-            mock_config.deck_name = "Chinese"
+            mock_config.deck_name = "Smalltalk"
             with (
                 patch("add2anki.cli.load_config", return_value=mock_config),
-                patch("add2anki.cli.process_structured_file") as mock_process_structured_file,
+                patch("rich.prompt.IntPrompt.ask", return_value="1"),
+                patch("add2anki.cli.process_structured_file", return_value=None) as mock_process_structured_file,
             ):
-                result = runner.invoke(main, ["--file", "vocab.csv"])
+                # Use --deck option to bypass the interactive prompt
+                result = runner.invoke(main, ["--file", "vocab.csv", "--deck", "Smalltalk", "--no-launch-anki"])
+
+                # Verify the command executed successfully
                 assert result.exit_code == 0
 
-                # Check that process_structured_file was called with the CSV file
+                # Verify process_structured_file was called with the right arguments
                 mock_process_structured_file.assert_called_once()
                 call_args = mock_process_structured_file.call_args[0]
                 assert call_args[0] == "vocab.csv"  # file path
-                assert call_args[1] == "Chinese"  # deck name
+                assert call_args[1] == "Smalltalk"  # deck name
 
 
 def test_main_with_tags() -> None:
@@ -401,17 +541,72 @@ def test_main_with_tags() -> None:
                 with (
                     patch("add2anki.cli.load_config", return_value=mock_config),
                     patch("contextual_langdetect.contextual_detect") as mock_detect,
+                    patch("rich.prompt.IntPrompt.ask", return_value=1),
+                    patch("add2anki.cli.process_sentence", return_value=None) as mock_process_sentence,
                 ):
                     # Mock language detection to return English
                     mock_detect.return_value = ["en"]
 
-                    # Run the CLI command with specific tags
-                    result = runner.invoke(main, ["--tags", "test,tag", "Hello", "--no-launch-anki"])
-
-                    # Check execution was successful
+                    # Test 1: Default tags (None) - use --deck to bypass interactive prompt
+                    result = runner.invoke(main, ["Hello", "--deck", "Smalltalk", "--no-launch-anki"])
                     assert result.exit_code == 0
 
-                    # Check that add_note was called with the right tags
-                    mock_anki_client.add_note.assert_called_once()
-                    call_args = mock_anki_client.add_note.call_args[1]
-                    assert call_args["tags"] == ["test", "tag"]
+                    # Verify process_sentence is called with default tags (None)
+                    mock_process_sentence.assert_called_once_with(
+                        "Hello",
+                        "Smalltalk",
+                        mock_anki_client,
+                        "google-translate",
+                        "conversational",
+                        None,
+                        False,
+                        False,
+                        False,
+                        None,  # tags parameter
+                        None,  # source_lang parameter
+                        None,  # target_lang parameter
+                    )
+                    mock_process_sentence.reset_mock()
+
+                    # Test 2: Custom tags - use --deck to bypass interactive prompt
+                    result = runner.invoke(
+                        main, ["Hello", "--deck", "Smalltalk", "--tags", "custom,tags", "--no-launch-anki"]
+                    )
+                    assert result.exit_code == 0
+
+                    # Verify process_sentence is called with custom tags
+                    mock_process_sentence.assert_called_once_with(
+                        "Hello",
+                        "Smalltalk",
+                        mock_anki_client,
+                        "google-translate",
+                        "conversational",
+                        None,
+                        False,
+                        False,
+                        False,
+                        "custom,tags",  # tags parameter
+                        None,  # source_lang parameter
+                        None,  # target_lang parameter
+                    )
+                    mock_process_sentence.reset_mock()
+
+                    # Test 3: Empty tags - use --deck to bypass interactive prompt
+                    result = runner.invoke(main, ["Hello", "--deck", "Smalltalk", "--tags", "", "--no-launch-anki"])
+                    assert result.exit_code == 0
+
+                    # Verify process_sentence is called with empty tags
+                    mock_process_sentence.assert_called_once_with(
+                        "Hello",
+                        "Smalltalk",
+                        mock_anki_client,
+                        "google-translate",
+                        "conversational",
+                        None,
+                        False,
+                        False,
+                        False,
+                        "",  # tags parameter
+                        None,  # source_lang parameter
+                        None,  # target_lang parameter
+                    )

@@ -16,8 +16,8 @@ add2anki Hello how are you
 
 | Option | Description | Default |
 |--------|-------------|--------|
-| `--deck` | Name of the Anki deck to add cards to | "add2anki" |
-| `--note-type` | Name of the Anki note type to use | "add2anki" |
+| `--deck` | Name of the Anki deck to add cards to | Interactive selection |
+| `--note-type` | Name of the Anki note type to use | Interactive selection |
 | `--tags` | Comma-separated list of tags to add to the cards | "add2anki" |
 | `--style` | Translation style: `conversational`, `formal`, or `written` | "conversational" |
 | `--audio-provider` | Audio provider: `google` or `elevenlabs` | "google" |
@@ -51,7 +51,17 @@ add2anki --deck "Chinese" "Hello, how are you?"
 
 # Specify a note type
 add2anki --note-type "Basic" "Hello, how are you?"
+
+# Use the previously saved default deck
+add2anki --deck default "Hello, how are you?"
+
+# Use the previously saved default note type
+add2anki --note-type default "Hello, how are you?"
 ```
+
+When no deck or note type is specified on the command line, add2anki will prompt you to select one from the available options. The previously used deck or note type will be pre-selected as the default option. Your selection will be saved for future use.
+
+If there is only one available deck or suitable note type, it will be automatically selected without prompting.
 
 ### Tags
 
