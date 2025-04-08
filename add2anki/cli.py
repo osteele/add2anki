@@ -514,8 +514,8 @@ def process_structured_file(
     if is_chinese:
         console.print("[bold blue]Detected Chinese language learning table[/bold blue]")
 
-        # For Chinese learning, use the note type from command line, config, or prompt
-        selected_note_type = note_type or config.note_type
+        # For Chinese learning, use the note type from command line or prompt
+        selected_note_type = note_type
 
         if not selected_note_type:
             # Find suitable note types for Chinese learning
@@ -533,19 +533,22 @@ def process_structured_file(
                 # If there's only one suitable note type, use it
                 selected_note_type, _ = suitable_note_types[0]
                 console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
-
-                # Save only the note type in the configuration
-                config.note_type = selected_note_type
-                if not dry_run:
-                    save_config(config)
             else:
                 display_note_types(suitable_note_types, anki_client, is_chinese=True)
+                # Set default selection to the previously used note type if available
+                default_selection = 1
+                if config.note_type:
+                    for i, (note_type_name, _) in enumerate(suitable_note_types, 1):
+                        if note_type_name == config.note_type:
+                            default_selection = i
+                            break
+
                 selection = IntPrompt.ask(
                     "[bold blue]Select a note type[/bold blue]",
                     choices=[str(i) for i in range(1, len(suitable_note_types) + 1)],
-                    default=1,
+                    default=str(default_selection),
                 )
-                note_type_tuple = suitable_note_types[selection - 1]
+                note_type_tuple = suitable_note_types[int(selection) - 1]
                 selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
 
             # Save only the note type in the configuration
@@ -575,13 +578,25 @@ def process_structured_file(
                 console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
             else:
                 display_note_types(compatible_note_types, anki_client, is_chinese=False)
+                # Set default selection to the previously used note type if available
+                default_selection = 1
+                if config.note_type:
+                    for i, note_type_name in enumerate(compatible_note_types, 1):
+                        if isinstance(note_type_name, tuple):
+                            if note_type_name[0] == config.note_type:
+                                default_selection = i
+                                break
+                        elif note_type_name == config.note_type:
+                            default_selection = i
+                            break
+
                 selection = IntPrompt.ask(
                     "[bold blue]Select a note type[/bold blue]",
                     choices=[str(i) for i in range(1, len(compatible_note_types) + 1)],
-                    default=1,
+                    default=str(default_selection),
                 )
-                note_type_tuple = compatible_note_types[selection - 1]
-                selected_note_type = note_type_tuple[0]
+                note_type_tuple = compatible_note_types[int(selection) - 1]
+                selected_note_type = note_type_tuple[0] if isinstance(note_type_tuple, tuple) else note_type_tuple
 
     # At this point we have a selected note type
     field_names = anki_client.get_field_names(selected_note_type)
