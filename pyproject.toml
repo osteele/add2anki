@@ -22,6 +22,7 @@ Homepage = "https://github.com/osteele/add2anki"
 Documentation = "https://osteele.github.io/add2anki/"
 Issues = "https://github.com/osteele/add2anki/issues"
 Source = "https://github.com/osteele/add2anki"
+Changelog = "https://github.com/osteele/add2anki/blob/main/CHANGELOG.md"
 
 [project.scripts]
 add2anki = "add2anki.cli:main"
