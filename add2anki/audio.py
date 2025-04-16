@@ -85,7 +85,7 @@ class GoogleTranslateAudioService(AudioGenerationService):
         # Save to a temporary file
         temp_dir = Path(tempfile.gettempdir()) / "add2anki"
         temp_dir.mkdir(exist_ok=True)
-        audio_file_path = temp_dir / f"{hash(text)}.mp3"
+        audio_file_path = temp_dir / f"add2anki_{abs(hash(text))}.mp3"
 
         # Download the audio file
         with urllib.request.urlopen(request) as response, open(audio_file_path, "wb") as file:
@@ -185,7 +185,7 @@ class ElevenLabsAudioService(AudioGenerationService):
             # Save to a temporary file
             temp_dir = Path(tempfile.gettempdir()) / "add2anki"
             temp_dir.mkdir(exist_ok=True)
-            audio_file_path = temp_dir / f"{hash(text)}.mp3"
+            audio_file_path = temp_dir / f"add2anki_{abs(hash(text))}.mp3"
 
             # Convert iterator to bytes if needed
             audio_bytes = b"".join(audio) if hasattr(audio, "__iter__") and not isinstance(audio, bytes) else audio

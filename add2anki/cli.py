@@ -5,7 +5,7 @@ import logging
 import os
 import pathlib
 from collections.abc import Sequence
-from typing import Any, Protocol, TypedDict, cast
+from typing import Any, Literal, TypedDict, cast
 
 import click
 from contextual_langdetect import contextual_detect
@@ -14,7 +14,7 @@ from rich.prompt import IntPrompt
 from rich.table import Table
 
 from add2anki.anki_client import AnkiClient
-from add2anki.audio import create_audio_service
+from add2anki.audio import AudioGenerationService, create_audio_service
 
 # Import directly from config.py to avoid circular imports
 from add2anki.config import (
@@ -25,14 +25,193 @@ from add2anki.config import (
     load_config,
     save_config,
 )
-from add2anki.exceptions import Add2ankiError, LanguageDetectionError
+from add2anki.exceptions import Add2ankiError, AudioGenerationError, LanguageDetectionError
 from add2anki.language_detection import Language, LanguageState
-from add2anki.language_detection import process_batch as process_batch_detect
-from add2anki.language_detection import process_sentence as process_sentence_detect
 from add2anki.srt import filter_srt_entries, is_mandarin, parse_srt_file
 from add2anki.translation import StyleType, TranslationService
 
 console = Console()
+
+
+# Shared field mapping function for translation results
+def map_fields_to_anki(
+    field_names: list[str],
+    sentence: str,
+    hanzi: str,
+    pinyin: str,
+    detected: str | None,
+    target_lang: str,
+    audio_path: str | None,
+) -> tuple[dict[str, str], bool]:
+    """Map translation results to Anki fields.
+
+    Args:
+        field_names: List of field names from the Anki note type
+        sentence: The original sentence
+        hanzi: The translated text (typically Chinese)
+        pinyin: The pronunciation (typically Pinyin)
+        detected: The detected language of the original sentence
+        target_lang: The target language code
+        audio_path: Path to the generated audio file, if any
+
+    Returns:
+        A tuple containing:
+        - Dictionary mapping field names to values
+        - Boolean indicating whether an audio field was set
+    """
+    # Define semantic types and their corresponding synonyms
+    semantic_types = {
+        "hanzi": ["hanzi", "chinese", target_lang],
+        "pinyin": ["pinyin", "pronunciation"],
+        "sentence": ["english", "translation"],
+        "audio": ["sound", "audio"],
+    }
+
+    # Add detected language as a synonym for the sentence field if available
+    if detected:
+        semantic_types["sentence"].append(detected)
+
+    # Create a mapping from semantic type to content
+    content_by_type = {
+        "hanzi": hanzi,
+        "pinyin": pinyin,
+        "sentence": sentence,
+        "audio": f"[sound:{os.path.basename(audio_path)}]" if audio_path else "",
+    }
+
+    fields: dict[str, str] = {}
+    audio_field_set = False
+
+    # Loop through each field and determine its semantic type
+    for field in field_names:
+        field_lower = field.lower()
+
+        for semantic_type, synonyms in semantic_types.items():
+            # Check if this field matches any synonym for this semantic type
+            if any(synonym.lower() in field_lower for synonym in synonyms):
+                # For audio fields, only set one field and only if we have audio
+                if semantic_type == "audio":
+                    if not audio_path or audio_field_set:
+                        break
+                    audio_field_set = True
+
+                # Add content to the field
+                fields[field] = content_by_type[semantic_type]
+                break
+
+    return fields, audio_field_set
+
+
+# Function to add a translation to Anki
+def add_translation_to_anki(
+    sentence: str,
+    hanzi: str,
+    pinyin: str,
+    deck_name: str,
+    note_type: str,
+    field_names: list[str],
+    anki_client: AnkiClient,
+    audio_service: AudioGenerationService | None,
+    target_lang: str,
+    tags: str | None = None,
+    dry_run: bool = False,
+    verbose: bool = False,
+    detected_lang: str | None = None,
+) -> int | None:
+    """Add a translation to Anki.
+
+    Args:
+        sentence: The original sentence
+        hanzi: The translated text
+        pinyin: The pronunciation
+        deck_name: Name of the Anki deck
+        note_type: Note type to use
+        field_names: List of field names from the Anki note type
+        anki_client: AnkiClient instance
+        audio_service: Audio service instance
+        target_lang: Target language code
+        tags: Comma-separated list of tags to add to the note
+        dry_run: If True, don't add the card to Anki
+        verbose: If True, show more detailed output
+        detected_lang: The detected language of the sentence
+
+    Returns:
+        The note ID if added successfully, None otherwise
+    """
+    if verbose:
+        console.print(f"Original: {sentence}")
+        console.print(f"Translation: {hanzi}")
+        console.print(f"Pinyin: {pinyin}")
+
+    # Generate audio for the target language text
+    audio_path = None
+    if audio_service is not None and not dry_run:
+        try:
+            audio_path = audio_service.generate_audio_file(hanzi)
+            if verbose:
+                console.print(f"[blue]Generated audio file: {audio_path}[/blue]")
+        except AudioGenerationError as e:
+            console.print(f"[bold red]Error generating audio:[/bold red] {e}")
+
+    # Map fields based on detected languages
+    fields, audio_field_set = map_fields_to_anki(
+        field_names, sentence, hanzi, pinyin, detected_lang, target_lang, audio_path
+    )
+
+    # Show preview in dry run mode
+    if dry_run:
+        console.print(f"[bold yellow]DRY RUN:[/bold yellow] Would add note to deck '{deck_name}'")
+        console.print(f"[bold yellow]Note type:[/bold yellow] {note_type}")
+        console.print(f"[bold yellow]Fields:[/bold yellow] {fields}")
+        if audio_path:
+            console.print(f"[bold yellow]Audio:[/bold yellow] {os.path.basename(audio_path)}")
+
+        # Show tags that would be applied
+        note_tags = []
+        if tags is not None:  # If tags parameter was provided
+            if tags.strip():  # Non-empty string
+                note_tags = [tag.strip() for tag in tags.split(",")]
+            # Otherwise leave as empty list for empty string
+        else:  # If tags parameter was not provided (None)
+            note_tags = ["add2anki"]
+
+        if note_tags:
+            console.print(f"[bold yellow]Tags:[/bold yellow] {', '.join(note_tags)}")
+        else:
+            console.print("[bold yellow]Tags:[/bold yellow] none")
+        return None
+
+    # Add note to Anki
+    try:
+        # Prepare audio configuration
+        audio_config = None
+        # Only create audio config if we haven't already set an audio field in fields
+        if audio_path and not audio_field_set:
+            audio_config = create_audio_config(audio_path, field_names)
+
+        # Prepare tags
+        note_tags = []
+        if tags is not None:  # If tags parameter was provided
+            if tags.strip():  # Non-empty string
+                note_tags = [tag.strip() for tag in tags.split(",")]
+            # Otherwise leave as empty list for empty string
+        else:  # If tags parameter was not provided (None)
+            note_tags = ["add2anki"]
+
+        note_id = anki_client.add_note(
+            deck_name=deck_name,
+            note_type=note_type,
+            fields=fields,
+            audio=cast(dict[str, str | list[str]], audio_config) if audio_config else None,
+            tags=note_tags,
+        )
+        console.print(f"[bold green]✓ Added note with ID:[/bold green] {note_id}")
+        return note_id
+    except Add2ankiError as e:
+        console.print(f"[bold red]Error adding note:[/bold red] {e}")
+        if verbose:
+            console.print(f"[dim]Fields: {fields}[/dim]")
+        return None
 
 
 class AudioConfig(TypedDict):
@@ -43,26 +222,9 @@ class AudioConfig(TypedDict):
     fields: list[str]
 
 
-class AnkiClientProtocol(Protocol):
-    """Protocol for AnkiClient to avoid circular imports."""
-
-    def get_note_types(self) -> list[str]: ...
-    def get_field_names(self, note_type: str) -> list[str]: ...
-    def get_card_templates(self, note_type: str) -> list[str]: ...
-    def get_model_sort_field(self, note_type: str) -> str | None: ...
-    def get_first_field(self, note_type: str) -> str | None: ...
-    def get_deck_names(self) -> list[str]: ...
-    def create_deck(self, deck_name: str) -> int: ...
-    def add_note(
-        self,
-        deck_name: str,
-        note_type: str,
-        fields: dict[str, str],
-        audio: dict[str, str | list[str]] | None = None,
-        tags: list[str] | None = None,
-    ) -> int: ...
-    def check_anki_status(self) -> tuple[bool, str]: ...
-    def launch_anki(self, timeout: int = 30) -> tuple[bool, str]: ...
+class PositionalArgKind(TypedDict):
+    mode: Literal["interactive", "paths", "sentences"]
+    values: list[str]
 
 
 def is_chinese_learning_table(headers: Sequence[str]) -> bool:
@@ -208,7 +370,7 @@ def check_environment(audio_provider: str) -> tuple[bool, str]:
     return True, "All required environment variables are set"
 
 
-def get_required_field(anki_client: AnkiClientProtocol, note_type: str) -> str | None:
+def get_required_field(anki_client: AnkiClient, note_type: str) -> str | None:
     """Get the required field for a note type.
 
     Args:
@@ -228,7 +390,7 @@ def get_required_field(anki_client: AnkiClientProtocol, note_type: str) -> str |
     return required_field
 
 
-def filter_compatible_note_types(anki_client: AnkiClientProtocol, headers: Sequence[str]) -> list[str]:
+def filter_compatible_note_types(anki_client: AnkiClient, headers: Sequence[str]) -> list[str]:
     """Filter note types to only include those that have compatible required fields.
 
     Args:
@@ -268,7 +430,7 @@ def filter_compatible_note_types(anki_client: AnkiClientProtocol, headers: Seque
 
 
 def check_note_type_compatibility(
-    anki_client: AnkiClientProtocol, note_type: str, headers: Sequence[str]
+    anki_client: AnkiClient, note_type: str, headers: Sequence[str]
 ) -> tuple[bool, str | None]:
     """Check if a note type is compatible with the given headers.
 
@@ -338,7 +500,7 @@ def check_note_type_compatibility(
 
 
 def create_audio_config(
-    audio_path: str, field_names: list[str], specific_fields: list[str] | None = None
+    audio_path: str | None, field_names: list[str], specific_fields: list[str] | None = None
 ) -> AudioConfig:
     """Create a standardized audio configuration dictionary.
 
@@ -358,14 +520,14 @@ def create_audio_config(
         fields = [field for field in field_names if "sound" in field.lower() or "audio" in field.lower()]
 
     return {
-        "path": audio_path,
-        "filename": os.path.basename(audio_path),
+        "path": "" if audio_path is None else audio_path,
+        "filename": "" if audio_path is None else os.path.basename(audio_path),
         "fields": fields,
     }
 
 
 def display_note_types(
-    note_types: list[str] | list[tuple[str, FieldMapping]], anki_client: AnkiClientProtocol, is_chinese: bool = False
+    note_types: list[str] | list[tuple[str, FieldMapping]], anki_client: AnkiClient, is_chinese: bool = False
 ) -> None:
     """Display available note types in a consistent tabular format.
 
@@ -440,11 +602,11 @@ def display_note_types(
     console.print("Fields are separated by • bullets for better readability")
 
 
-def process_structured_file(
+def process_tabular_file(
     file_path: str,
     deck_name: str,
-    anki_client: AnkiClientProtocol,
-    audio_provider: str,
+    anki_client: AnkiClient,
+    audio_service: AudioGenerationService | None,
     style: StyleType,
     note_type: str | None = None,
     dry_run: bool = False,
@@ -458,7 +620,7 @@ def process_structured_file(
         file_path: Path to the CSV/TSV file
         deck_name: The name of the Anki deck to add the cards to
         anki_client: The AnkiClient instance
-        audio_provider: The audio service provider to use
+        audio_service: The audio service instance
         style: The style of the translation
         note_type: Optional note type to use
         dry_run: If True, don't actually add to Anki
@@ -720,8 +882,9 @@ def process_structured_file(
                     # Generate audio if needed
                     if needs_audio and sound_field:
                         console.print(f"[bold blue]Generating audio for:[/bold blue] {hanzi_text}")
-                        audio_service = create_audio_service(provider=audio_provider)
-                        audio_path = audio_service.generate_audio_file(hanzi_text)
+                        audio_path = (
+                            audio_service.generate_audio_file(hanzi_text) if audio_service is not None else None
+                        )
 
                         # Prepare audio field
                         sound_field_list = [sound_field] if sound_field in field_names else ["Sound"]
@@ -826,8 +989,9 @@ def process_structured_file(
 def process_sentence(
     sentence: str,
     deck_name: str,
-    anki_client: AnkiClientProtocol,
-    audio_provider: str,
+    anki_client: AnkiClient,
+    translation_service: TranslationService,
+    audio_service: AudioGenerationService | None,
     style: StyleType,
     note_type: str | None = None,
     dry_run: bool = False,
@@ -845,7 +1009,8 @@ def process_sentence(
         sentence: The sentence to process.
         deck_name: Name of the Anki deck to add the card to.
         anki_client: AnkiClient instance.
-        audio_provider: Audio service provider to use.
+        translation_service: TranslationService instance.
+        audio_service: Audio service instance.
         style: Style of the translation.
         note_type: Note type to use. If None, will try to find a suitable one.
         dry_run: If True, don't add the card to Anki.
@@ -859,10 +1024,6 @@ def process_sentence(
     """
     if debug:
         logging.basicConfig(level=logging.DEBUG)
-
-    # Create services
-    translation_service = TranslationService()
-    audio_service = create_audio_service(audio_provider)
 
     # Launch Anki if needed
     if launch_anki:
@@ -920,8 +1081,15 @@ def process_sentence(
     if state is None:
         state = LanguageState()
 
-    def on_translation(sentence: str, hanzi: str, pinyin: str) -> None:
-        """Callback for translation results."""
+    try:
+        # Use source_lang if provided
+        Language(source_lang) if source_lang else None
+        if verbose and source_lang:
+            console.print(f"[blue]Source language: {source_lang}[/blue]")
+
+        # Pass the style parameter to the translation service
+        translation = translation_service.translate(sentence, style=style)
+
         # Determine the source language (the language of 'sentence')
         detected = None
         try:
@@ -930,96 +1098,28 @@ def process_sentence(
                 detected = Language(languages[0])
                 if verbose:
                     console.print(f"\n[blue]Detected language: {detected}[/blue]")
-        except Exception:
+        except LanguageDetectionError:
             if verbose:
                 console.print("\n[yellow]Could not detect language of the original text[/yellow]")
 
-        if verbose:
-            console.print(f"Original: {sentence}")
-            console.print(f"Translation: {hanzi}")
-            console.print(f"Pinyin: {pinyin}")
+        if style and verbose:
+            console.print(f"Style: {style}")
 
-        # Generate audio for the target language text
-        audio_path = None
-        if audio_provider != "none" and not dry_run:
-            try:
-                audio_path = audio_service.generate_audio_file(hanzi)
-                if verbose:
-                    console.print(f"[blue]Generated audio file: {audio_path}[/blue]")
-            except Exception as e:
-                console.print(f"[bold red]Error generating audio:[/bold red] {e}")
-
-        # Create note fields - more intelligently map fields based on detected languages
-        fields: dict[str, str] = {}
-
-        # Map fields based on detected languages
-        for field in field_names:
-            # Field for the text in target language (typically Chinese/hanzi)
-            if (
-                find_matching_field(field, "hanzi")
-                or find_matching_field(field, target_lang)
-                or find_matching_field(field, "Chinese")
-            ):
-                fields[field] = hanzi
-            # Field for pronunciation (typically pinyin)
-            elif (
-                find_matching_field(field, "pinyin")
-                or find_matching_field(field, "pronunciation")
-                or find_matching_field(field, "Pronunciation")
-            ):
-                fields[field] = pinyin
-            # Field for text in source language (typically English)
-            elif (
-                find_matching_field(field, "english")
-                or find_matching_field(field, "translation")
-                or (detected and find_matching_field(field, detected))
-                or find_matching_field(field, "Translation")
-            ):
-                fields[field] = sentence
-
-        # Add note to Anki
-        try:
-            # Prepare audio configuration
-            audio_config = None
-            if audio_path:
-                audio_config = create_audio_config(audio_path, field_names)
-
-            # Prepare tags
-            note_tags = []
-            if tags is not None:  # If tags parameter was provided
-                if tags.strip():  # Non-empty string
-                    note_tags = [tag.strip() for tag in tags.split(",")]
-                # Otherwise leave as empty list for empty string
-            else:  # If tags parameter was not provided (None)
-                note_tags = ["add2anki"]
-
-            note_id = anki_client.add_note(
-                deck_name=deck_name,
-                note_type=selected_note_type,
-                fields=fields,
-                audio=cast(dict[str, str | list[str]], audio_config),
-                tags=note_tags,
-            )
-            console.print(f"[bold green]✓ Added note with ID:[/bold green] {note_id}")
-        except Exception as e:
-            console.print(f"[bold red]Error adding note:[/bold red] {e}")
-            if verbose:
-                console.print(f"[dim]Fields: {fields}[/dim]")
-            raise
-
-    try:
-        # Use source_lang if provided
-        source_lang_obj = Language(source_lang) if source_lang else None
-        if verbose and source_lang:
-            console.print(f"[blue]Source language: {source_lang}[/blue]")
-
-        process_sentence_detect(
-            sentence,
-            Language(target_lang),
-            translation_service,
-            state,
-            source_lang=source_lang_obj,
-            on_translation=on_translation,
+        # Use the shared function to add the translation to Anki
+        add_translation_to_anki(
+            sentence=sentence,
+            hanzi=translation.hanzi,
+            pinyin=translation.pinyin,
+            deck_name=deck_name,
+            note_type=selected_note_type,
+            field_names=field_names,
+            anki_client=anki_client,
+            audio_service=audio_service,
+            target_lang=target_lang,
+            tags=tags,
+            dry_run=dry_run,
+            verbose=verbose,
+            detected_lang=detected,
         )
     except LanguageDetectionError as e:
         if verbose:
@@ -1061,8 +1161,9 @@ def get_target_language(source_lang: str | None = None, target_lang: str | None 
 def process_batch(
     sentences: Sequence[str],
     deck_name: str,
-    anki_client: AnkiClientProtocol,
-    audio_provider: str,
+    anki_client: AnkiClient,
+    translation_service: TranslationService,
+    audio_service: AudioGenerationService | None,
     style: StyleType,
     note_type: str | None = None,
     dry_run: bool = False,
@@ -1079,7 +1180,8 @@ def process_batch(
         sentences: The sentences to process.
         deck_name: Name of the Anki deck to add the cards to.
         anki_client: AnkiClient instance.
-        audio_provider: Audio service provider to use.
+        translation_service: TranslationService instance.
+        audio_service: Audio service instance.
         style: Style of the translation.
         note_type: Note type to use. If None, will try to find a suitable one.
         dry_run: If True, don't add the cards to Anki.
@@ -1092,10 +1194,6 @@ def process_batch(
     """
     if debug:
         logging.basicConfig(level=logging.DEBUG)
-
-    # Create services
-    translation_service = TranslationService()
-    audio_service = create_audio_service(audio_provider)
 
     # Launch Anki if needed
     if launch_anki:
@@ -1125,155 +1223,52 @@ def process_batch(
             note_type = note_type_tuple[0]  # Extract note type name from tuple
 
     # Get field names
-    field_names = anki_client.get_field_names(note_type)
+    anki_client.get_field_names(note_type)
 
     # Track statistics for reporting
     success_count = 0
     error_count = 0
-    skipped_count = 0
 
-    def on_translation(sentence: str, hanzi: str, pinyin: str) -> None:
-        """Callback for translation results."""
-        nonlocal success_count
-
-        # Determine the source language (the language of 'sentence')
-        detected = None
-        # Use contextual detection
-        detected_langs = contextual_detect([sentence])
-        detected = detected_langs[0] if detected_langs and detected_langs[0] else None
-        if verbose and detected:
-            console.print(f"\n[blue]Detected language: {detected}[/blue]")
-        elif verbose:
-            console.print("\n[yellow]Could not detect language of the original text[/yellow]")
-
-        if verbose:
-            console.print(f"Original: {sentence}")
-            console.print(f"Translation: {hanzi}")
-            console.print(f"Pinyin: {pinyin}")
-
-        # Generate audio
-        audio_path = None
-        if audio_provider != "none" and not dry_run:
-            audio_path = audio_service.generate_audio_file(hanzi)
-            audio_url = f"[sound:{os.path.basename(audio_path)}]"
-
-        # Create note fields - more intelligently map fields based on detected languages
-        fields: dict[str, str] = {}
-
-        # Map fields based on detected languages
-        for field in field_names:
-            # Field for the text in target language (typically Chinese/hanzi)
-            if find_matching_field(field, "hanzi") or find_matching_field(field, target_lang):
-                fields[field] = hanzi
-            # Field for pronunciation (typically pinyin)
-            elif find_matching_field(field, "pinyin") or find_matching_field(field, "pronunciation"):
-                fields[field] = pinyin
-            # Field for text in source language (typically English)
-            elif find_matching_field(field, "english") or (detected and find_matching_field(field, detected)):
-                fields[field] = sentence
-            # Sound/audio field
-            elif ("sound" in field.lower() or "audio" in field.lower()) and audio_path:
-                audio_url = f"[sound:{os.path.basename(audio_path)}]"
-                fields[field] = audio_url
-
-        # Add note to Anki
-        if not dry_run:
-            try:
-                note_id = anki_client.add_note(
-                    deck_name=deck_name,
-                    note_type=note_type,
-                    fields=fields,
-                    audio={
-                        "path": str(audio_path) if audio_path else "",
-                        "filename": os.path.basename(audio_path) if audio_path else "",
-                        "fields": [
-                            field for field in field_names if "sound" in field.lower() or "audio" in field.lower()
-                        ],
-                    },
-                    tags=tags.split(",") if tags else ["add2anki"],
-                )
-                console.print(f"[bold green]✓ Added note with ID:[/bold green] {note_id}")
-                success_count += 1
-            except Exception as e:
-                nonlocal error_count
-                console.print(f"[bold red]Error adding note:[/bold red] {e}")
-                if verbose:
-                    console.print(f"[dim]Fields: {fields}[/dim]")
-                error_count += 1
-
-    try:
-        # Pre-analyze sentences for debugging/reporting
-        if verbose:
-            console.print("\n[bold blue]Analyzing input sentences...[/bold blue]")
-            language_stats: dict[str, int] = {}
-            ambiguous_count = 0
-
-            # Use batch detection for better context
-            detected_langs = contextual_detect(sentences)
-
-            for idx, (sentence, lang) in enumerate(zip(sentences, detected_langs, strict=False), 1):
-                if not lang:
-                    console.print(f"[yellow]Sentence {idx}: Could not detect language[/yellow]")
-                    continue
-
-                # Update language statistics
-                if lang in language_stats:
-                    language_stats[lang] += 1
-                else:
-                    language_stats[lang] = 1
-
-                # Count potentially ambiguous detections based on length
-                if len(sentence) < 6:
-                    ambiguous_count += 1
-                    console.print(
-                        f"[yellow]Sentence {idx}: Potentially ambiguous detection - "
-                        f"short text detected as {lang}[/yellow]"
-                    )
-
-            # Report statistics
-            console.print("\n[bold blue]Language statistics:[/bold blue]")
-            for lang, count in language_stats.items():
-                console.print(f"- {lang}: {count} sentences ({count / len(sentences) * 100:.1f}%)")
-
-            if ambiguous_count:
-                console.print(
-                    f"[yellow]Warning: {ambiguous_count} sentences "
-                    f"({ambiguous_count / len(sentences) * 100:.1f}%) have ambiguous language detection.[/yellow]"
-                )
-
-        # Process the batch
-        console.print(f"\n[bold blue]Processing {len(sentences)} sentences...[/bold blue]")
-        process_batch_detect(
-            sentences,
-            Language(target_lang),
-            translation_service,
-            source_lang=Language(source_lang) if source_lang else None,
-            on_translation=on_translation,
-        )
-
-        # Report results
-        if not dry_run:
-            console.print(
-                f"\n[bold green]Successfully processed {success_count} out of {len(sentences)} sentences[/bold green]"
+    for sentence in sentences:
+        try:
+            process_sentence(
+                sentence,
+                deck_name,
+                anki_client,
+                translation_service,
+                audio_service,
+                style,
+                note_type,
+                dry_run,
+                verbose,
+                debug,
+                tags,
+                source_lang,
+                target_lang,
+                None,
+                launch_anki,
             )
-            if error_count > 0:
-                console.print(f"[bold red]{error_count} sentences failed to be added[/bold red]")
-            if skipped_count > 0:
-                console.print(
-                    f"[bold yellow]{skipped_count} sentences were skipped due to ambiguous detection[/bold yellow]"
-                )
+            success_count += 1
+        except Exception as e:
+            console.print(f"[red]Error processing sentence: {e}[/red]")
+            error_count += 1
 
-    except LanguageDetectionError as e:
-        if verbose:
-            console.print(f"\n[red]Error: {e}[/red]")
-        raise
+    if dry_run:
+        console.print(f"\n[bold yellow]DRY RUN SUMMARY: Would have processed {len(sentences)} sentences[/bold yellow]")
+        console.print(f"[bold yellow]Would have added {success_count} notes[/bold yellow]")
+        if error_count > 0:
+            console.print(f"[bold yellow]Would have encountered {error_count} errors[/bold yellow]")
+    else:
+        console.print(f"\n[bold green]Successfully added {success_count} notes[/bold green]")
+        if error_count > 0:
+            console.print(f"[bold red]Failed to add {error_count} notes[/bold red]")
 
 
 def process_srt_file(
     file_path: str,
     deck_name: str,
-    anki_client: AnkiClientProtocol,
-    audio_provider: str,
+    anki_client: AnkiClient,
+    audio_service: AudioGenerationService | None,
     style: StyleType,
     note_type: str | None = None,
     dry_run: bool = False,
@@ -1287,7 +1282,7 @@ def process_srt_file(
         file_path: Path to the SRT file
         deck_name: The name of the Anki deck to add the cards to
         anki_client: The AnkiClient instance
-        audio_provider: The audio service provider to use
+        audio_service: The audio service instance
         style: The style of the translation
         note_type: Optional note type to use
         dry_run: If True, don't actually add to Anki
@@ -1316,9 +1311,6 @@ def process_srt_file(
 
         # Create translation service for translating Mandarin to English
         translation_service = TranslationService()
-
-        # Get audio service
-        audio_service = create_audio_service(provider=audio_provider)
 
         # Load or create configuration
         config = load_config()
@@ -1444,7 +1436,7 @@ def process_srt_file(
 
                     if not dry_run:
                         console.print(f"[bold blue]Generating audio for:[/bold blue] {hanzi}")
-                        audio_path = audio_service.generate_audio_file(hanzi)
+                        audio_path = audio_service.generate_audio_file(hanzi) if audio_service is not None else None
 
                         # Prepare audio field
                         sound_field = field_names[2] if len(field_names) > 2 else "Sound"
@@ -1533,6 +1525,310 @@ def process_srt_file(
     except Add2ankiError as e:
         console.print(f"[bold red]Error processing SRT file:[/bold red] {e}")
         raise
+
+
+def process_text_file(
+    path: str,
+    deck: str,
+    anki_client: AnkiClient,
+    translation_service: TranslationService,
+    audio_service: AudioGenerationService | None,
+    style: StyleType,
+    note_type: str | None,
+    dry_run: bool,
+    verbose: bool,
+    debug: bool,
+    tags: str | None,
+    source_lang: str | None,
+    target_lang: str | None,
+    launch_anki: bool,
+) -> None:
+    """Process a text file: strip lines, remove comments, ignore blanks, then call process_batch."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+        if not lines:
+            console.print("[yellow]Warning: No sentences found in the file[/yellow]")
+            return
+        if verbose:
+            if source_lang:
+                console.print(f"[blue]Source language: {source_lang}[/blue]")
+            if target_lang:
+                console.print(f"[blue]Target language: {target_lang}[/blue]")
+
+        # Just call the existing process_batch function
+        process_batch(
+            lines,
+            deck,
+            anki_client,
+            translation_service,
+            audio_service,
+            style,
+            note_type,
+            dry_run,
+            verbose,
+            debug,
+            tags,
+            source_lang,
+            target_lang,
+            launch_anki,
+        )
+    except OSError as e:
+        console.print(f"[red]Error reading file {path}: {e}[/red]")
+    except Add2ankiError as e:
+        console.print(f"[red]Error reading file {path}: {e}[/red]")
+
+
+def process_file(
+    path: str,
+    deck: str,
+    anki_client: AnkiClient,
+    translation_service: TranslationService,
+    audio_service: AudioGenerationService | None,
+    style: StyleType,
+    note_type: str | None,
+    dry_run: bool,
+    verbose: bool,
+    debug: bool,
+    tags: str | None,
+    source_lang: str | None,
+    target_lang: str | None,
+    launch_anki: bool,
+) -> None:
+    ext = os.path.splitext(path)[1].lower()
+    if not os.path.exists(path):
+        print(f"[red]File does not exist: {path}[/red]")
+        return
+    if ext == ".srt":
+        process_srt_file(
+            path,
+            deck,
+            anki_client,
+            audio_service,
+            style,
+            note_type,
+            dry_run,
+            verbose,
+            debug,
+            tags,
+        )
+    elif ext in (".csv", ".tsv"):
+        process_tabular_file(
+            path,
+            deck,
+            anki_client,
+            audio_service,
+            style,
+            note_type,
+            dry_run,
+            verbose,
+            debug,
+            tags,
+        )
+    elif ext in (".txt", ".text"):
+        process_text_file(
+            path,
+            deck,
+            anki_client,
+            translation_service,
+            audio_service,
+            style,
+            note_type,
+            dry_run,
+            verbose,
+            debug,
+            tags,
+            source_lang,
+            target_lang,
+            launch_anki,
+        )
+    else:
+        print(f"[red]Unsupported file extension: {ext}[/red]")
+        return
+
+
+def classify_positional_args(args: tuple[str, ...]) -> PositionalArgKind:
+    """Classify positional arguments for add2anki CLI.
+
+    Returns a TypedDict:
+      - mode: 'interactive', 'paths', or 'sentences'
+      - values: [] (interactive), list of paths, or list of sentences
+    Raises ValueError for mixed types or invalid paths.
+    Treats args with any extension (e.g. .txt, .csv, .tsv, .srt) as files, case-insensitive.
+    """
+
+    def is_file_like(arg: str) -> bool:
+        dot = arg.rfind(".")
+        # Require a non-space before the dot, and extension up to 6 chars
+        return dot > 0 and arg[dot - 1] != " " and len(arg) - dot <= 6
+
+    if not args:
+        return {"mode": "interactive", "values": []}
+
+    all_exist = [os.path.exists(arg) for arg in args]
+    all_paths = all(all_exist)
+    any_exist = any(all_exist)
+    all_file_like = all(is_file_like(arg.lower()) for arg in args)
+    any_file_like = any(is_file_like(arg.lower()) for arg in args)
+    all_no_spaces = all(" " not in arg for arg in args)
+
+    if all_paths or all_file_like:
+        return {"mode": "paths", "values": list(args)}
+    elif any_exist or any_file_like:
+        raise ValueError("Cannot mix file paths with non-path arguments.")
+    elif len(args) == 1:
+        return {"mode": "sentences", "values": [args[0]]}
+    elif all_no_spaces:
+        # Treat as a single sentence formed by joining words
+        combined = " ".join(args)
+        return {"mode": "sentences", "values": [combined]}
+    elif all(" " in arg for arg in args):
+        # All are sentences (contain spaces)
+        return {"mode": "sentences", "values": list(args)}
+    else:
+        raise ValueError("Cannot mix sentences and single words/paths.")
+
+
+def interactive_add(
+    deck: str,
+    anki_client: AnkiClient,
+    translation_service: TranslationService,
+    audio_service: AudioGenerationService | None,
+    style: StyleType,
+    note_type: str | None,
+    dry_run: bool,
+    verbose: bool,
+    debug: bool,
+    tags: str | None,
+    source_lang: str | None,
+    target_lang: str | None,
+    launch_anki: bool,
+) -> None:
+    """Prompt for sentences interactively, using LanguageState for context-aware language detection."""
+    state = LanguageState()
+
+    # Get note type
+    config = load_config()
+    selected_note_type: str
+
+    # Handle special 'default' value
+    if note_type == "default" and config.note_type:
+        selected_note_type = config.note_type
+    elif note_type:
+        selected_note_type = note_type
+    else:
+        note_types = find_suitable_note_types(anki_client)
+        if not note_types:
+            console.print("[bold red]Error: No suitable note types found[/bold red]")
+            return
+        if len(note_types) == 1:
+            note_type_tuple = note_types[0]
+            selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
+            console.print(f"[bold green]Using note type:[/bold green] {selected_note_type}")
+        else:
+            display_note_types(note_types, anki_client, is_chinese=True)
+
+            # Set default selection to the previously used note type if available
+            default_selection = 1
+            if config.note_type:
+                for i, (note_type_name, _) in enumerate(note_types, 1):
+                    if note_type_name == config.note_type:
+                        default_selection = i
+                        break
+
+            selection = IntPrompt.ask(
+                "[bold blue]Select a note type[/bold blue]",
+                choices=[str(i) for i in range(1, len(note_types) + 1)],
+                default=str(default_selection),
+            )
+            note_type_tuple = note_types[int(selection) - 1]
+            selected_note_type = note_type_tuple[0]  # Extract note type name from tuple
+
+        # Save the selected note type as the default for future use
+        config.note_type = selected_note_type
+        if not dry_run:
+            save_config(config)
+
+    # Get field names
+    field_names = anki_client.get_field_names(selected_note_type)
+
+    # Determine target language
+    target_lang_str = get_target_language(source_lang, target_lang)
+
+    try:
+        while True:
+            try:
+                sentence = input("Enter a sentence to add to Anki (or press Enter to quit): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
+            if not sentence:
+                break
+
+            try:
+                # Translate the sentence
+                translation = translation_service.translate(sentence, style=style)
+
+                # Detect language if source_lang is not provided
+                detected = None
+                try:
+                    if not source_lang:
+                        languages = contextual_detect([sentence])
+                        if languages and languages[0]:
+                            detected = languages[0]
+                            if verbose:
+                                console.print(f"[blue]Detected language: {detected}[/blue]")
+                except LanguageDetectionError:
+                    console.print("[yellow]Could not detect language automatically[/yellow]")
+
+                # Add translation to Anki
+                add_translation_to_anki(
+                    sentence=sentence,
+                    hanzi=translation.hanzi,
+                    pinyin=translation.pinyin,
+                    deck_name=deck,
+                    note_type=selected_note_type,
+                    field_names=field_names,
+                    anki_client=anki_client,
+                    audio_service=audio_service,
+                    target_lang=target_lang_str,
+                    tags=tags,
+                    dry_run=dry_run,
+                    verbose=verbose,
+                    detected_lang=detected,
+                )
+
+                # Update state
+                if detected:
+                    state.record_language(Language(detected))
+
+                if verbose:
+                    console.print(f"Detected language: {state.detected_language}")
+                    console.print(f"Primary languages: {state.primary_languages}")
+
+            except LanguageDetectionError as e:
+                console.print(f"[red]Language detection error: {e}[/red]")
+                lang = input("Enter the source language code (e.g. 'en', 'zh'): ").strip()
+                if lang:
+                    # Try again with the specified language
+                    translation = translation_service.translate(sentence, style=style)
+                    add_translation_to_anki(
+                        sentence=sentence,
+                        hanzi=translation.hanzi,
+                        pinyin=translation.pinyin,
+                        deck_name=deck,
+                        note_type=selected_note_type,
+                        field_names=field_names,
+                        anki_client=anki_client,
+                        audio_service=audio_service,
+                        target_lang=target_lang_str,
+                        tags=tags,
+                        dry_run=dry_run,
+                        verbose=verbose,
+                        detected_lang=lang,
+                    )
+    except Add2ankiError as e:
+        console.print(f"[red]Error in interactive mode: {e}[/red]")
 
 
 @click.command()
@@ -1689,178 +1985,73 @@ def main(
     # Cast style to StyleType
     style_type = cast(StyleType, style)
 
-    # Check if a single sentence argument is actually a file path
-    if len(sentences) == 1 and os.path.exists(sentences[0]) and not file:
-        file = sentences[0]
-        sentences = ()
+    # Process positional arguments
+    try:
+        arg_info = classify_positional_args(sentences)
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        return
 
-    # Process sentences
-    if sentences:
-        try:
-            # Show source and target languages in verbose mode
-            if verbose:
-                if source_lang:
-                    console.print(f"[blue]Source language: {source_lang}[/blue]")
-                if target_lang:
-                    console.print(f"[blue]Target language: {target_lang}[/blue]")
+    # Create services once
+    translation_service = TranslationService()
+    audio_service = None if audio_provider == "none" else create_audio_service(audio_provider)
 
-            if len(sentences) == 1:
-                process_sentence(
-                    sentences[0],
-                    deck,
-                    anki_client,
-                    audio_provider,
-                    style_type,
-                    note_type,
-                    dry_run,
-                    verbose,
-                    debug,
-                    tags,
-                    source_lang,
-                    target_lang,
-                )
-            else:
-                # Join multiple arguments into a single sentence if they're meant to be processed together
-                combined_sentence = " ".join(sentences)
-                process_sentence(
-                    combined_sentence,
-                    deck,
-                    anki_client,
-                    audio_provider,
-                    style_type,
-                    note_type,
-                    dry_run,
-                    verbose,
-                    debug,
-                    tags,
-                    source_lang,
-                    target_lang,
-                )
-        except LanguageDetectionError as e:
-            console.print(f"[bold red]Language detection error:[/bold red] {e}")
-            console.print("[yellow]Language detection is ambiguous[/yellow]")
-
-            # Provide recovery suggestions
-            if not source_lang:
-                console.print("\n[bold yellow]Suggestions:[/bold yellow]")
-                console.print("1. Specify the source language with --source-lang")
-                console.print("2. For ambiguous text, try providing a longer sample")
-                console.print("3. For batch processing, ensure the file contains some unambiguous sentences")
-
-                # If in interactive mode, offer to retry with source language
-                if not file:
-                    retry = click.confirm("Would you like to try again with an explicit source language?")
-                    if retry:
-                        detected_lang = e.args[0].split("'")[1] if "'" in e.args[0] else None
-                        if detected_lang:
-                            console.print(f"[bold blue]Detected language: {detected_lang}[/bold blue]")
-
-                        langs = ["en", "zh", "ja", "es", "fr", "de"]  # Common languages
-                        if detected_lang and detected_lang in langs:
-                            langs.remove(detected_lang)
-
-                        source_lang = click.prompt(
-                            "Enter source language code", type=click.Choice(langs), default=langs[0]
-                        )
-
-                        # Retry with explicit source language
-                        if len(sentences) == 1:
-                            process_sentence(
-                                sentences[0],
-                                deck,
-                                anki_client,
-                                audio_provider,
-                                style_type,
-                                note_type,
-                                dry_run,
-                                verbose,
-                                debug,
-                                tags,
-                                source_lang,
-                                target_lang,
-                            )
-                        else:
-                            combined_sentence = " ".join(sentences)
-                            process_sentence(
-                                combined_sentence,
-                                deck,
-                                anki_client,
-                                audio_provider,
-                                style_type,
-                                note_type,
-                                dry_run,
-                                verbose,
-                                debug,
-                                tags,
-                                source_lang,
-                                target_lang,
-                            )
-            return
-    elif file:
-        # Check file extension
-        if file.endswith(".srt"):
-            process_srt_file(
-                file,
+    if arg_info["mode"] == "interactive":
+        interactive_add(
+            deck,
+            anki_client,
+            translation_service,
+            audio_service,
+            style_type,
+            note_type,
+            dry_run,
+            verbose,
+            debug,
+            tags,
+            source_lang,
+            target_lang,
+            launch_anki,
+        )
+        return
+    elif arg_info["mode"] == "paths":
+        for path in arg_info["values"]:
+            process_file(
+                path,
                 deck,
                 anki_client,
-                audio_provider,
+                translation_service,
+                audio_service,
                 style_type,
                 note_type,
                 dry_run,
                 verbose,
                 debug,
                 tags,
+                source_lang,
+                target_lang,
+                launch_anki,
             )
-        elif file.endswith(".csv") or file.endswith(".tsv"):
-            process_structured_file(
-                file,
-                deck,
-                anki_client,
-                audio_provider,
-                style_type,
-                note_type,
-                dry_run,
-                verbose,
-                debug,
-                tags,
-            )
-        else:
-            # Handle text files with one sentence per line
-            try:
-                with open(file, encoding="utf-8") as f:
-                    lines = [line.strip() for line in f if line.strip()]
-
-                # Skip header if present
-                if lines and lines[0].lower() == "text":
-                    lines = lines[1:]
-
-                if not lines:
-                    console.print("[yellow]Warning: No sentences found in the file[/yellow]")
-                    return
-
-                for line in lines:
-                    process_sentence(
-                        line,
-                        deck,
-                        anki_client,
-                        audio_provider,
-                        style_type,
-                        note_type,
-                        dry_run,
-                        verbose,
-                        debug,
-                        tags,
-                        source_lang,
-                    )
-            except Exception as e:
-                raise Add2ankiError(
-                    f"Unsupported file extension: {os.path.splitext(file)[1]}. Expected .csv or .tsv"
-                ) from e
-    else:
-        console.print("[red]Error: No sentences or file provided[/red]")
+        return
+    elif arg_info["mode"] == "sentences":
+        # ...
+        process_batch(
+            arg_info["values"],
+            deck,
+            anki_client,
+            translation_service,
+            audio_service,
+            style_type,
+            note_type,
+            dry_run,
+            verbose,
+            debug,
+            tags,
+            source_lang,
+            target_lang,
+            launch_anki,
+        )
         return
 
 
 if __name__ == "__main__":
-    # Click will parse arguments from sys.argv
     main()
